@@ -1,0 +1,6 @@
+{
+  "name": "ArogyaDisha",
+  "description": "Rural Healthcare & Clinical Field Operations Platform with offline sync, OPD queue, teleconsultation, and clinical workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
