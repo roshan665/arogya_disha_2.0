@@ -163,6 +163,78 @@ const t = {
     bookingSuccess: '📅 {date} रोजी {time} वाजता भेट यशस्वीरित्या नोंदवली गेली! आशा ताईंना सूचना पाठवली आहे.',
     ashaAssignedNotice: 'आशा कार्यकर्ती सुनिता मोरे यांच्याकडे सूचना पाठवली गेली आहे.',
     emergencyTransmitted: '🚨 १०८ रुग्णवाहिका तात्काळ पाठवली आहे! डॉक्टरांना सूचित केले.'
+  },
+  hi: {
+    greeting: 'शुभ प्रभात, {name}! 👋',
+    tagline: 'आज ही अपने स्वास्थ्य की देखभाल करें।',
+    notificationsCount: '3 सक्रिय स्वास्थ्य सूचनाएं',
+    languageSet: 'भाषा बदली: हिंदी',
+    healthOverview: 'आपका स्वास्थ्य अवलोकन',
+    overviewSubtitle: 'छोटे कदम, बड़ा असर!',
+    heartRate: 'हृदय गति',
+    bloodPressure: 'रक्तचाप (BP)',
+    bloodSugar: 'ब्लड शुगर',
+    weight: 'वजन',
+    bpm: 'bpm',
+    mmhg: 'mmHg',
+    mgdl: 'mg/dL',
+    kg: 'किग्रा',
+    connectAsha: 'अपनी आशा कार्यकर्ता से जुड़ें',
+    ashaRole: 'आशा कार्यकर्ता • धामणगांव पीएचसी',
+    contactAsha: 'आशा दीदी से संपर्क',
+    quickActions: 'त्वरित सेवाएं',
+    callAmbulance: 'एम्बुलेंस बुलाएं',
+    bookAppointment: 'अपॉइंटमेंट बुक करें',
+    medicineReminder: 'दवा अनुस्मारक',
+    healthRecords: 'स्वास्थ्य रिकॉर्ड्स',
+    labReports: 'लैब रिपोर्ट्स',
+    healthTips: 'स्वास्थ्य सलाह',
+    nearbyServices: 'निकटतम स्वास्थ्य केंद्र',
+    healthInsights: 'स्वास्थ्य विश्लेषण',
+    viewAll: 'सभी देखें',
+    healthScore: 'स्वास्थ्य स्कोर',
+    healthScoreGood: 'आपकी सेहत बहुत अच्छी है!',
+    healthScoreSubtitle: 'स्वस्थ रहने के लिए इसी तरह ध्यान रखें।',
+    walk: 'टहलना',
+    water: 'पानी',
+    sleep: 'नींद',
+    stepsCount: '6,000 कदम',
+    glassesCount: '5 गिलास',
+    hrsCount: '7 घंटे',
+    emergencyServices: 'आपातकालीन सेवाएं',
+    emergency247: '24x7 आपातकाल',
+    emergencyHelpline: 'आपातकालीन हेल्पलाइन',
+    upcomingAppointments: 'आगामी अपॉइंटमेंट्स',
+    confirmed: 'पुष्टीकृत',
+    home: 'होम',
+    appointments: 'अपॉइंटमेंट्स',
+    reports: 'रिपोर्ट्स',
+    profile: 'प्रोफाइल',
+    yourAppointments: 'आपकी निर्धारित मुलाकातें',
+    appointmentsSubtitle: 'धामणगांव उप-केंद्र व आशा गृह भेंट',
+    bookNew: '+ नई अपॉइंटमेंट',
+    noAppointments: 'अभी कोई अपॉइंटमेंट दर्ज नहीं है।',
+    cancelAppointment: 'रद्द करें',
+    reschedule: 'समय बदलें',
+    diagnosticReports: 'नैदानिक जांच रिपोर्ट्स',
+    reportsSubtitle: 'प्रयोगशाला व महत्वपूर्ण जांच इतिहास',
+    download: 'डाउनलोड',
+    abhaCard: 'डिजिटल आभा स्वास्थ्य रिकॉर्ड',
+    pmjayActive: 'आयुष्मान भारत (PM-JAY) सक्रिय',
+    personalInfo: 'व्यक्तिगत जानकारी',
+    address: 'पता: गवली गली, वार्ड 2, धामणगांव, कर्जत',
+    assignedAsha: 'नियुक्त आशा: सुनीता मोरे (+91 98234 56789)',
+    primaryCenter: 'प्राथमिक केंद्र: धामणगांव उप-केंद्र, कर्जत पीएचसी',
+    signOut: 'खाते से लॉग आउट करें',
+    bookAppointmentModalTitle: 'डॉक्टर / आशा अपॉइंटमेंट बुक करें',
+    consultType: 'परामर्श का प्रकार',
+    preferredDate: 'तारीख चुनें',
+    preferredTime: 'समय स्लॉट चुनें',
+    confirmBooking: 'बुकिंग की पुष्टि करें',
+    cancel: 'रद्द करें',
+    bookingSuccess: '📅 {date} को {time} बजे अपॉइंटमेंट सफलतापूर्वक दर्ज हो गया! आशा दीदी को सूचना भेज दी गई है।',
+    ashaAssignedNotice: 'आशा कार्यकर्ता सुनीता मोरे को समन्वय हेतु सूचना भेजी गई।',
+    emergencyTransmitted: '🚨 108 एम्बुलेंस आपातकालीन कॉल भेजी गई! डॉक्टर व डिस्पैचर को सूचित किया।'
   }
 };
 
@@ -182,7 +254,7 @@ const INITIAL_APPOINTMENTS: AppointmentItem[] = [
 
 export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
   const router = useRouter();
-  const [language, setLanguage] = useState<'mr' | 'en'>('mr');
+  const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('mr');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'reports' | 'profile'>('home');
@@ -503,7 +575,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                 type="button"
                 className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-full border border-slate-200 flex items-center gap-1 cursor-pointer transition-all"
               >
-                <span>{language === 'mr' ? 'मराठी' : 'English'}</span>
+                <span>{language === 'mr' ? 'मराठी' : language === 'hi' ? 'हिंदी' : 'English'}</span>
                 <span className="material-symbols-outlined text-[16px]">expand_more</span>
               </button>
 
@@ -519,6 +591,17 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                   >
                     <span>मराठी</span>
                     {language === 'mr' && <span className="text-emerald-600 font-bold">✓</span>}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLanguage('hi');
+                      setShowLanguageMenu(false);
+                      showToast(t.hi.languageSet);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between cursor-pointer"
+                  >
+                    <span>हिंदी</span>
+                    {language === 'hi' && <span className="text-emerald-600 font-bold">✓</span>}
                   </button>
                   <button
                     onClick={() => {

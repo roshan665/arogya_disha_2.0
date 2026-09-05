@@ -46,6 +46,7 @@ export interface TriageResponseData {
   ai_summary: string;
   recommended_action: string;
   marathi_translation: string;
+  hindi_translation?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -96,7 +97,8 @@ Provide a strictly valid JSON response conforming to the schema:
 - risk_score: Exactly "GREEN", "YELLOW", or "RED".
 - ai_summary: Concise 2-3 sentence clinical summary in English explaining key physiological findings.
 - recommended_action: Actionable steps for the frontline ASHA/ANM worker (e.g. oxygen administration, teleconsult with MO, 108 referral, paracetamol dosage).
-- marathi_translation: An accurate, respectful Marathi translation (मराठी भाषांतर) of the recommended action and risk summary for local communication with the patient and family.`;
+- marathi_translation: An accurate, respectful Marathi translation (मराठी भाषांतर) of the recommended action and risk summary.
+- hindi_translation: An accurate, respectful Hindi translation (हिंदी अनुवाद) of the recommended action and risk summary.`;
 
     const ai = getGeminiClient();
 
@@ -127,8 +129,12 @@ Provide a strictly valid JSON response conforming to the schema:
               type: Type.STRING,
               description: 'Accurate Marathi translation of summary and action plan',
             },
+            hindi_translation: {
+              type: Type.STRING,
+              description: 'Accurate Hindi translation of summary and action plan',
+            },
           },
-          required: ['risk_score', 'ai_summary', 'recommended_action', 'marathi_translation'],
+          required: ['risk_score', 'ai_summary', 'recommended_action', 'marathi_translation', 'hindi_translation'],
         },
       },
     });

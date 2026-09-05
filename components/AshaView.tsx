@@ -241,6 +241,98 @@ const t = {
     emergencyDispatched: '१०८ रुग्णवाहिका धामणगावसाठी रवाना केली आहे!',
     teleconsultScheduled: 'डॉ. देशमुख यांच्याकडे टेलिकन्सल्टेशन विनंती पाठवली!',
     stockUpdated: 'औषध साठा यशस्वीरित्या अद्यतनित केला!'
+  },
+  hi: {
+    greeting: 'नमस्ते, आशा! 👋',
+    role: 'आशा कार्यकर्ता • धामणगांव पीएचसी',
+    languageSet: 'भाषा बदली: हिंदी',
+    impactTitle: 'आज का आपका प्रभाव',
+    impactSubtitle: 'आप सकारात्मक बदलाव ला रही हैं!',
+    familiesVisited: 'गृह भेंट परिवार',
+    patientsAssisted: 'मरीज़ सहायता',
+    followUps: 'फॉलो-अप पूर्ण',
+    healthAlert: 'स्वास्थ्य चेतावनी',
+    healthAlertMsg: 'डेंगू से बचाव के लिए पानी जमा न होने दें।',
+    quickActions: 'त्वरित सेवाएं',
+    newHouseVisit: 'नई गृह भेंट',
+    addPatient: 'मरीज़ पंजीकरण',
+    teleconsult: 'टेलीकंसल्ट अनुरोध',
+    triage: 'स्वास्थ्य जांच (ट्राइएज)',
+    followUpList: 'फॉलो-अप मरीज़',
+    referralTrack: 'रेफरल ट्रैकिंग',
+    medAvailability: 'दवा स्टॉक',
+    emergency: '108 आपातकाल',
+    schedule: "आज की कार्यसूची",
+    viewAll: 'सभी देखें',
+    loading: 'कार्यसूची लोड हो रही है...',
+    noTasks: 'कोई कार्य लंबित नहीं है! 🌿',
+    highRisk: 'उच्च जोखिम',
+    updates: 'महत्वपूर्ण अपडेट्स',
+    polioCampaign: 'पल्स पोलियो अभियान',
+    polioDate: 'अगला अभियान 15 मई 2026',
+    home: 'होम',
+    patients: 'मरीज़ सूची',
+    reports: 'रिपोर्ट्स',
+    profile: 'प्रोफाइल',
+    comingSoon: 'जल्द आ रहा है',
+    comingSoonMsg: 'यह अनुभाग वर्तमान में प्रगति पर है।',
+    // Patients tab
+    patientDirectory: 'पंजीकृत मरीज़ निर्देशिका',
+    patientSubtitle: 'धामणगांव उप-केंद्र मरीज़ रिकॉर्ड',
+    searchPlaceholder: 'नाम, आभा आईडी या वार्ड खोजें...',
+    allFilter: 'सभी',
+    ancFilter: 'उच्च जोखिम / गर्भवती माताएं',
+    pncFilter: 'प्रसवोत्तर माताएं (PNC)',
+    ncdFilter: 'दीर्घकालिक बीमारी (NCD)',
+    childFilter: 'टीकाकरण बाकी बच्चे',
+    addNewPatient: '+ नया मरीज़ जोड़ें',
+    noPatientsFound: 'खोज के अनुसार कोई मरीज़ नहीं मिला।',
+    vitalsLastChecked: 'अंतिम जांच',
+    recordVisit: 'भेंट दर्ज करें',
+    viewDetails: 'विवरण देखें',
+    call: 'कॉल करें',
+    // Reports tab
+    monthlyReport: 'मासिक कार्य रिपोर्ट',
+    performanceOverview: 'प्रदर्शन व लक्ष्य सारांश',
+    may2026: 'मई 2026 सारांश',
+    targetProgress: 'मासिक लक्ष्य प्रगति',
+    targetCompleted: 'भेंट पूर्ण (85%)',
+    incentiveSummary: 'आशा मानदेय व प्रोत्साहन राशि',
+    totalEarned: 'इस महीने कुल अर्जित राशि',
+    ancIncentive: 'गर्भवती माता (JSY) प्रोत्साहन',
+    immIncentive: 'टीकाकरण फॉलो-अप प्रोत्साहन',
+    ncdIncentive: 'NCD स्क्रीनिंग व सर्वे',
+    teleconsultIncentive: 'टेलीकंसल्टेशन सुविधा प्रोत्साहन',
+    exportReport: 'मासिक रिपोर्ट डाउनलोड करें (PDF)',
+    healthSurveillance: 'ग्राम स्वास्थ्य निगरानी',
+    dengueSurv: 'डेंगू / मलेरिया बुखार जांच',
+    malnutritionSurv: 'कुपोषित बच्चे (SAM/MAM) निगरानी',
+    waterSources: 'क्लोरीनेटेड पेयजल स्रोत निरीक्षण',
+    // Profile tab
+    profileHeader: 'आशा कार्यकर्ता प्रोफाइल',
+    ashaId: 'आशा आईडी: ASHA-MH-2024-884',
+    onDuty: 'ड्यूटी पर सक्रिय',
+    workAssignment: 'कार्य आवंटन विवरण',
+    subCenter: 'उप-केंद्र: धामणगांव',
+    parentPhc: 'मूल पीएचसी: कर्जत पीएचसी, रायगढ़',
+    assignedPopulation: 'आवंटित जनसंख्या: 1,250 नागरिक (312 परिवार)',
+    supervisor: 'पर्यवेक्षक एएनएम: रेखा पाटिल (+91 98221 00123)',
+    moDoctor: 'चिकित्सा अधिकारी: डॉ. अमित देशमुख (पीएचसी कर्जत)',
+    appSettings: 'ऐप व ऑफलाइन सेटिंग्स',
+    offlineMode: 'ऑफलाइन मोड',
+    offlineStatusText: 'मोबाइल नेटवर्क के बिना भी 100% कार्य करता है',
+    offlineSync: 'क्लाउड डेटा सिंक करें',
+    downloadGuidelines: 'स्वास्थ्य दिशानिर्देश (PDF)',
+    contactHelpline: 'आशा हेल्पलाइन व 108 एम्बुलेंस सीधा संपर्क',
+    logoutTitle: 'खाता सुरक्षा',
+    logoutButton: 'लॉग आउट करें (Sign Out)',
+    logoutConfirm: 'क्या आप लॉग आउट करना चाहते हैं?',
+    // Modals
+    saveOfflineSuccess: 'गृह भेंट सफलतापूर्वक दर्ज की गई और सिंक के लिए कतारबद्ध है!',
+    patientRegisteredSuccess: 'नया मरीज़ सफलतापूर्वक पंजीकृत हुआ!',
+    emergencyDispatched: '108 आपातकालीन एम्बुलेंस धामणगांव के लिए रवाना!',
+    teleconsultScheduled: 'डॉ. देशमुख को टेलीकंसल्टेशन अनुरोध भेजा गया!',
+    stockUpdated: 'दवा स्टॉक चेकलिस्ट सफलतापूर्वक अपडेट हुई!'
   }
 };
 
@@ -253,7 +345,7 @@ export const AshaView: React.FC<AshaViewProps> = ({
   user,
   onSignOut,
 }) => {
-  const [language, setLanguage] = useState<'mr' | 'en'>('mr');
+  const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('mr');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'patients' | 'reports' | 'profile'>('home');
@@ -639,7 +731,7 @@ export const AshaView: React.FC<AshaViewProps> = ({
               type="button"
               className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-full border border-slate-200 flex items-center gap-1 cursor-pointer transition-all"
             >
-              <span>{language === 'mr' ? 'मराठी' : 'English'}</span>
+              <span>{language === 'mr' ? 'मराठी' : language === 'hi' ? 'हिंदी' : 'English'}</span>
               <span className="material-symbols-outlined text-[16px]">expand_more</span>
             </button>
 
@@ -655,6 +747,17 @@ export const AshaView: React.FC<AshaViewProps> = ({
                 >
                   <span>मराठी</span>
                   {language === 'mr' && <span className="text-emerald-600 font-bold">✓</span>}
+                </button>
+                <button
+                  onClick={() => {
+                    setLanguage('hi');
+                    setShowLanguageMenu(false);
+                    showToast(t.hi.languageSet);
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between cursor-pointer"
+                >
+                  <span>हिंदी</span>
+                  {language === 'hi' && <span className="text-emerald-600 font-bold">✓</span>}
                 </button>
                 <button
                   onClick={() => {
