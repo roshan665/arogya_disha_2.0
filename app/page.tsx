@@ -11,9 +11,9 @@ import { AdminView } from '../components/AdminView';
 export type UserRole = 'ASHA' | 'DOCTOR' | 'ADMIN';
 
 export default function HomePage() {
-  const [activeRole, setActiveRole] = useState<UserRole>('ASHA');
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [user, setUser] = useState<any>(null);
-  const [showDemoSheet, setShowDemoSheet] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const {
     isOnline,
@@ -28,18 +28,42 @@ export default function HomePage() {
   useEffect(() => {
     const supabase = createClient();
 
-    // Check active session
-    supabase.auth.getUser().then(({ data }) => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
       if (data.user) {
         setUser(data.user);
         const roleMeta = data.user.user_metadata?.role;
-        if (roleMeta === 'mo_doctor') setActiveRole('DOCTOR');
-        else if (roleMeta === 'admin') setActiveRole('ADMIN');
+        if (roleMeta === 'mo_doctor' || roleMeta === 'specialist') {
+            setActiveRole('DOCTOR');
+        } else if (roleMeta === 'admin' || roleMeta === 'system_admin') {
+            setActiveRole('ADMIN');
+        } else {
+            setActiveRole('ASHA'); // Default fallback for workers
+        }
+      } else {
+        setUser(null);
+        setActiveRole(null);
       }
-    });
+      setIsLoading(false);
+    };
+
+    fetchUser();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+      if (session?.user) {
+        setUser(session.user);
+        const roleMeta = session.user.user_metadata?.role;
+        if (roleMeta === 'mo_doctor' || roleMeta === 'specialist') {
+            setActiveRole('DOCTOR');
+        } else if (roleMeta === 'admin' || roleMeta === 'system_admin') {
+            setActiveRole('ADMIN');
+        } else {
+            setActiveRole('ASHA');
+        }
+      } else {
+        setUser(null);
+        setActiveRole(null);
+      }
     });
 
     return () => {
@@ -51,48 +75,7 @@ export default function HomePage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
-  };
-
-  const handleTriggerMockRedAlert = () => {
-    const timestamp = new Date().toISOString();
-    const mockReferralId = 'ref-' + Math.floor(1000 + Math.random() * 9000);
-
-    const mockPatientData = {
-      id: mockReferralId,
-      patient_id: 'p-' + Math.floor(1000 + Math.random() * 9000),
-      patient_name: 'Rajesh Shivaji Patil',
-      age: 58,
-      gender: 'M' as const,
-      village: 'Wadgaon Phata (Sub-center)',
-      urgency: 'RED' as const,
-      risk_score: 'RED' as const,
-      symptoms: ['Acute Severe Chest Pain', 'SpO2 84%', 'Cold Diaphoresis', 'Shortness of Breath'],
-      vitals: {
-        bp_systolic: 192,
-        bp_diastolic: 118,
-        heart_rate: 124,
-        spo2: 84,
-        temperature: 99.1,
-      },
-      ai_summary:
-        'CRITICAL ALERT: Patient displaying signs of Acute Coronary Syndrome (ACS) with Hypertensive Crisis (192/118 mmHg) and severe arterial hypoxia (SpO2 84%). Immediate 108 Emergency Transport required.',
-      recommended_action:
-        '1. High-flow O2 therapy (4-6 L/min). 2. Administer Sublingual Nitroglycerin if SBP > 90. 3. Dispatch 108 ALS Ambulance immediately to Sub-District Hospital Karjat.',
-      marathi_translation:
-        'अतिदक्षता इशारा: रुग्णाला छातीत तीव्र वेदना आणि ऑक्सिजनची पातळी ८४% वर घसरली आहे. तात्काळ १०८ रुग्णवाहिका बोलवून उपजिल्हा रुग्णालयात हलवा.',
-      target_facility: 'Sub-District Hospital (SDH) Karjat - Trauma Unit',
-      department: 'Cardiology & Emergency Care',
-      status: 'pending',
-      created_at: timestamp,
-      referring_worker: 'ASHA Worker Sunita Deshmukh (ID: AS-402)',
-    };
-
-    if (typeof window !== 'undefined') {
-      const event = new CustomEvent('arogya-mock-red-alert', { detail: mockPatientData });
-      window.dispatchEvent(event);
-    }
-
-    setActiveRole('DOCTOR');
+    setActiveRole(null);
   };
 
   return (
@@ -146,108 +129,84 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Clean Role Switcher Bar */}
-        <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
-          <button
-            onClick={() => setActiveRole('ASHA')}
-            type="button"
-            className={`py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeRole === 'ASHA'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[15px]">stethoscope</span>
-            <span>ASHA</span>
-          </button>
+        {/* Integrated Network Toolbar (Only shown when logged in) */}
+        {user && (
+            <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
+            {/* Network State Badge */}
+            <button
+                onClick={toggleOfflineSimulation}
+                type="button"
+                className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                isOnline
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}
+            >
+                <span
+                className={`w-2 h-2 rounded-full ${
+                    isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                }`}
+                />
+                <span>{isOnline ? 'Online' : 'Offline'}</span>
+            </button>
 
-          <button
-            onClick={() => setActiveRole('DOCTOR')}
-            type="button"
-            className={`py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer relative ${
-              activeRole === 'DOCTOR'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[15px]">medical_services</span>
-            <span>Doctor / MO</span>
-          </button>
-
-          <button
-            onClick={() => setActiveRole('ADMIN')}
-            type="button"
-            className={`py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-              activeRole === 'ADMIN'
-                ? 'bg-slate-800 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[15px]">monitoring</span>
-            <span>Admin</span>
-          </button>
-        </div>
-
-        {/* Integrated Network & Demo Action Toolbar */}
-        <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100 text-[11px]">
-          {/* Network State Badge */}
-          <button
-            onClick={toggleOfflineSimulation}
-            type="button"
-            className={`px-2.5 py-1 rounded-xl font-bold flex items-center gap-1 border transition-all cursor-pointer ${
-              isOnline
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-amber-50 text-amber-700 border-amber-200'
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-              }`}
-            />
-            <span>{isOnline ? 'Online' : 'Offline'}</span>
-          </button>
-
-          {/* Sync Button */}
-          <button
-            onClick={syncPendingRecords}
-            disabled={isSyncing}
-            type="button"
-            className="px-2.5 py-1 rounded-xl font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-1 cursor-pointer"
-          >
-            <span className={`material-symbols-outlined text-[14px] ${isSyncing ? 'animate-spin' : ''}`}>
-              sync
-            </span>
-            <span>Sync {pendingCount > 0 ? `(${pendingCount})` : ''}</span>
-          </button>
-
-          {/* Trigger Mock RED Alert Button */}
-          <button
-            onClick={handleTriggerMockRedAlert}
-            type="button"
-            className="px-2.5 py-1 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs flex items-center gap-1 cursor-pointer animate-pulse"
-          >
-            <span className="material-symbols-outlined text-[14px]">warning</span>
-            <span>Mock RED Alert</span>
-          </button>
-        </div>
+            {/* Sync Button */}
+            <button
+                onClick={syncPendingRecords}
+                disabled={isSyncing}
+                type="button"
+                className="px-2.5 py-1 rounded-xl font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-1 cursor-pointer"
+            >
+                <span className={`material-symbols-outlined text-[14px] ${isSyncing ? 'animate-spin' : ''}`}>
+                sync
+                </span>
+                <span>Sync {pendingCount > 0 ? `(${pendingCount})` : ''}</span>
+            </button>
+            </div>
+        )}
       </div>
 
       {/* Main Active Role View */}
       <div className="w-full">
-        {activeRole === 'ASHA' && (
-          <AshaView
-            isOffline={!isOnline}
-            onToggleOffline={toggleOfflineSimulation}
-            isSyncing={isSyncing}
-            onSync={syncPendingRecords}
-            lastSyncedText={lastSyncedTime ? `Last synced: ${lastSyncedTime}` : 'Synced'}
-          />
+        {isLoading ? (
+            <div className="text-center py-20 text-slate-500 font-semibold text-sm">
+                Loading Secure Context...
+            </div>
+        ) : !user ? (
+            <div className="w-full max-w-md mx-auto bg-white rounded-3xl p-8 shadow-sm border border-slate-200 text-center space-y-4 mt-10">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="material-symbols-outlined text-[32px] text-slate-400">lock</span>
+                </div>
+                <h2 className="text-xl font-extrabold text-slate-900">Authentication Required</h2>
+                <p className="text-sm text-slate-500">
+                    ArogyaDisha uses role-based access control. Please sign in with your authorized credentials to access your dashboard.
+                </p>
+                <div className="pt-4">
+                    <Link
+                        href="/login"
+                        className="inline-block text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-full transition-all shadow-md"
+                    >
+                        Proceed to Login
+                    </Link>
+                </div>
+            </div>
+        ) : (
+            <>
+                {activeRole === 'ASHA' && (
+                <AshaView
+                    isOffline={!isOnline}
+                    onToggleOffline={toggleOfflineSimulation}
+                    isSyncing={isSyncing}
+                    onSync={syncPendingRecords}
+                    lastSyncedText={lastSyncedTime ? `Last synced: ${lastSyncedTime}` : 'Synced'}
+                    user={user}
+                    onSignOut={handleSignOut}
+                />
+                )}
+                {activeRole === 'DOCTOR' && <DoctorView />}
+                {activeRole === 'ADMIN' && <AdminView />}
+            </>
         )}
-
-        {activeRole === 'DOCTOR' && <DoctorView />}
-
-        {activeRole === 'ADMIN' && <AdminView />}
       </div>
     </div>
   );

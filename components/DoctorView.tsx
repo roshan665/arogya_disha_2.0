@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '../lib/supabase/client';
+import { useRealtimeReferrals } from '../lib/hooks/useRealtimeReferrals';
 
 export interface DoctorReferral {
   id: string;
@@ -19,6 +20,9 @@ export interface DoctorReferral {
 export const DoctorView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'patients' | 'reports' | 'profile'>('home');
+
+  // Realtime Referrals
+  const { referrals, loading: referralsLoading } = useRealtimeReferrals('mock-facility-id'); // Replace with actual doctor's facility ID
 
   // Emergency Flash Banner state
   const [emergencyAlert, setEmergencyAlert] = useState<DoctorReferral | null>(null);
@@ -630,25 +634,23 @@ export const DoctorView: React.FC = () => {
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="p-2 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-emerald-600 text-[18px]">
-                        local_hospital
-                      </span>
-                      <span className="font-bold text-slate-800 text-[10px]">Civil Hospital Wardha</span>
-                    </div>
-                    <span className="font-black text-slate-900">5</span>
-                  </div>
-
-                  <div className="p-2 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-emerald-600 text-[18px]">
-                        domain
-                      </span>
-                      <span className="font-bold text-slate-800 text-[10px]">District Hospital Wardha</span>
-                    </div>
-                    <span className="font-black text-slate-900">7</span>
-                  </div>
+                  {referralsLoading ? (
+                    <p className="text-center py-2 text-slate-500">Loading...</p>
+                  ) : referrals.length === 0 ? (
+                    <p className="text-center py-2 text-slate-500">No pending referrals.</p>
+                  ) : (
+                    referrals.slice(0, 3).map((ref) => (
+                      <div key={ref.id} className="p-2 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-emerald-600 text-[18px]">
+                            local_hospital
+                          </span>
+                          <span className="font-bold text-slate-800 text-[10px] uppercase">{ref.status}</span>
+                        </div>
+                        <span className="font-black text-slate-900">{ref.urgency}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

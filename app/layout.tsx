@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ClientErrorHandler } from '../components/ClientErrorHandler';
 
 export const metadata: Metadata = {
   title: 'ArogyaDisha - AI Clinical Triage & Emergency Referral Platform',
@@ -27,6 +28,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-slate-50 text-slate-900 min-h-screen">
+        <ClientErrorHandler />
         {children}
       </body>
     </html>

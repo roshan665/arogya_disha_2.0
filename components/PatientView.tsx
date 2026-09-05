@@ -7,12 +7,203 @@ interface PatientViewProps {
   user?: any;
 }
 
+export interface AppointmentItem {
+  id: string;
+  type: string;
+  date: string;
+  rawDate?: string;
+  time: string;
+  doctorOrAsha: string;
+  facility: string;
+  status: 'CONFIRMED' | 'UPCOMING' | 'COMPLETED' | 'CANCELLED';
+  patientName: string;
+}
+
+const t = {
+  en: {
+    greeting: 'Good Morning, {name}! 👋',
+    tagline: 'Take charge of your health today.',
+    notificationsCount: '3 Active Health Notifications',
+    languageSet: 'Language set to English',
+    healthOverview: 'Your Health Overview',
+    overviewSubtitle: 'Small steps, big impact!',
+    heartRate: 'Heart Rate',
+    bloodPressure: 'Blood Pressure',
+    bloodSugar: 'Blood Sugar',
+    weight: 'Weight',
+    bpm: 'bpm',
+    mmhg: 'mmHg',
+    mgdl: 'mg/dL',
+    kg: 'kg',
+    connectAsha: 'Connect with Your ASHA',
+    ashaRole: 'ASHA Worker • Dhamangaon PHC',
+    contactAsha: 'Contact ASHA',
+    quickActions: 'Quick Actions',
+    callAmbulance: 'Call Ambulance',
+    bookAppointment: 'Book Appointment',
+    medicineReminder: 'Medicine Reminder',
+    healthRecords: 'Health Records',
+    labReports: 'Lab Reports',
+    healthTips: 'Health Tips',
+    nearbyServices: 'Nearby Services',
+    healthInsights: 'Health Insights',
+    viewAll: 'View All',
+    healthScore: 'Health Score',
+    healthScoreGood: "You're doing good!",
+    healthScoreSubtitle: 'Keep it up to stay healthy.',
+    walk: 'Walk',
+    water: 'Water',
+    sleep: 'Sleep',
+    stepsCount: '6,000 steps',
+    glassesCount: '5 glasses',
+    hrsCount: '7 hrs',
+    emergencyServices: 'Emergency Services',
+    emergency247: '24x7 Emergency',
+    emergencyHelpline: 'Emergency Helpline',
+    upcomingAppointments: 'Upcoming Appointments',
+    confirmed: 'Confirmed',
+    home: 'Home',
+    appointments: 'Appointments',
+    reports: 'Reports',
+    profile: 'Profile',
+    yourAppointments: 'Your Appointments',
+    appointmentsSubtitle: 'Dhamangaon PHC & ASHA Visits',
+    bookNew: '+ Book New',
+    noAppointments: 'No appointments booked yet.',
+    cancelAppointment: 'Cancel',
+    reschedule: 'Reschedule',
+    diagnosticReports: 'Diagnostic Reports',
+    reportsSubtitle: 'Laboratory & Vitals History',
+    download: 'Download',
+    abhaCard: 'Digital ABHA Health Records',
+    pmjayActive: 'PM-JAY Active',
+    personalInfo: 'Personal Information',
+    address: 'Address: Gavali Galli, Ward 2, Dhamangaon, Karjat',
+    assignedAsha: 'Assigned ASHA: Sunita More (+91 98234 56789)',
+    primaryCenter: 'Primary Center: Dhamangaon Sub-center, Karjat PHC',
+    signOut: 'Sign Out of Account',
+    bookAppointmentModalTitle: 'Book Doctor / ASHA Appointment',
+    consultType: 'Consultation Type',
+    preferredDate: 'Preferred Date',
+    preferredTime: 'Preferred Time Slot',
+    confirmBooking: 'Confirm Booking',
+    cancel: 'Cancel',
+    bookingSuccess: '📅 Appointment booked for {date} at {time} ({type})! Assigned to ASHA Sunita More.',
+    ashaAssignedNotice: 'Assigned to ASHA Sunita More for home/PHC coordination.',
+    emergencyTransmitted: '🚨 108 Emergency Call Transmitted! Doctor & Dispatcher Notified.'
+  },
+  mr: {
+    greeting: 'शुभ प्रभात, {name}! 👋',
+    tagline: 'आजच तुमच्या आरोग्याची काळजी घ्या.',
+    notificationsCount: '३ सक्रिय आरोग्य सूचना',
+    languageSet: 'भाषा बदलली: मराठी',
+    healthOverview: 'तुमचे आरोग्य विहंगावलोकन',
+    overviewSubtitle: 'लहान पावले, मोठा प्रभाव!',
+    heartRate: 'हृदयाचे ठोके',
+    bloodPressure: 'रक्तदाब',
+    bloodSugar: 'रक्तातील साखर',
+    weight: 'वजन',
+    bpm: 'ठोके/मि',
+    mmhg: 'mmHg',
+    mgdl: 'mg/dL',
+    kg: 'कि.ग्रॅ.',
+    connectAsha: 'तुमच्या आशा कार्यकर्तीशी संपर्क साधा',
+    ashaRole: 'आशा कार्यकर्ती • धामणगाव प्रा.आ.कें.',
+    contactAsha: 'आशा ताईंशी संपर्क',
+    quickActions: 'जलद कृती',
+    callAmbulance: 'रुग्णवाहिका बोलवा',
+    bookAppointment: 'भेट बुक करा',
+    medicineReminder: 'औषध स्मरणपत्र',
+    healthRecords: 'आरोग्य नोंदी',
+    labReports: 'लॅब अहवाल',
+    healthTips: 'आरोग्य टिप्स',
+    nearbyServices: 'जवळच्या आरोग्य सेवा',
+    healthInsights: 'आरोग्य विश्लेषण',
+    viewAll: 'सर्व पहा',
+    healthScore: 'आरोग्य स्कोअर',
+    healthScoreGood: 'तुमची तब्येत उत्तम आहे!',
+    healthScoreSubtitle: 'निरोगी राहण्यासाठी अशीच काळजी घ्या.',
+    walk: 'चालणे',
+    water: 'पाणी',
+    sleep: 'झोप',
+    stepsCount: '६,००० पावले',
+    glassesCount: '५ ग्लास',
+    hrsCount: '७ तास',
+    emergencyServices: 'आणीबाणी सेवा',
+    emergency247: '२४x७ आपत्कालीन',
+    emergencyHelpline: 'आपत्कालीन हेल्पलाइन',
+    upcomingAppointments: 'आगामी नियोजित भेटी',
+    confirmed: 'निश्चित',
+    home: 'मुख्यपृष्ठ',
+    appointments: 'भेटी (Appointments)',
+    reports: 'अहवाल',
+    profile: 'प्रोफाइल',
+    yourAppointments: 'तुमच्या नियोजित भेटी',
+    appointmentsSubtitle: 'धामणगाव उपकेंद्र व आशा गृहभेटी',
+    bookNew: '+ नवीन भेट बुक करा',
+    noAppointments: 'कोणतीही नियोजित भेट नोंदवलेली नाही.',
+    cancelAppointment: 'रद्द करा',
+    reschedule: 'वेळ बदला',
+    diagnosticReports: 'वैद्यकीय तपासणी अहवाल',
+    reportsSubtitle: 'प्रयोगशाळा व शारीरिक तपासणी इतिहास',
+    download: 'डाऊनलोड',
+    abhaCard: 'डिजिटल आभा आरोग्य नोंदी',
+    pmjayActive: 'आयुष्मान भारत (PM-JAY) सक्रिय',
+    personalInfo: 'वैयक्तिक माहिती',
+    address: 'पत्ता: गवळी गल्ली, वॉर्ड २, धामणगाव, कर्जत',
+    assignedAsha: 'आशा कार्यकर्ती: सुनिता मोरे (+91 98234 56789)',
+    primaryCenter: 'प्राथमिक केंद्र: धामणगाव उपकेंद्र, कर्जत प्रा.आ.कें.',
+    signOut: 'खात्यातून लॉग आउट करा',
+    bookAppointmentModalTitle: 'डॉक्टर / आशा भेट बुक करा',
+    consultType: 'तपासणीचा प्रकार',
+    preferredDate: 'तारीख निवडा',
+    preferredTime: 'वेळ निवडा',
+    confirmBooking: 'भेट निश्चित करा',
+    cancel: 'रद्द करा',
+    bookingSuccess: '📅 {date} रोजी {time} वाजता भेट यशस्वीरित्या नोंदवली गेली! आशा ताईंना सूचना पाठवली आहे.',
+    ashaAssignedNotice: 'आशा कार्यकर्ती सुनिता मोरे यांच्याकडे सूचना पाठवली गेली आहे.',
+    emergencyTransmitted: '🚨 १०८ रुग्णवाहिका तात्काळ पाठवली आहे! डॉक्टरांना सूचित केले.'
+  }
+};
+
+const INITIAL_APPOINTMENTS: AppointmentItem[] = [
+  {
+    id: 'apt-101',
+    type: 'ANC Routine Checkup',
+    date: '15 May 2026',
+    rawDate: '2026-05-15',
+    time: '10:00 AM',
+    doctorOrAsha: 'Sunita More (ASHA)',
+    facility: 'Dhamangaon Sub-center',
+    status: 'CONFIRMED',
+    patientName: 'Roshan Sahani',
+  }
+];
+
 export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
   const router = useRouter();
   const [language, setLanguage] = useState<'mr' | 'en'>('mr');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'reports' | 'profile'>('home');
+
+  // Appointments state with local persistence
+  const [appointments, setAppointments] = useState<AppointmentItem[]>(INITIAL_APPOINTMENTS);
+
+  // Load saved appointments from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('arogya_appointments');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAppointments(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading appointments from localStorage:', e);
+    }
+  }, []);
 
   // Modals state
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
@@ -35,8 +226,10 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
 
   // Appointment Form State
   const [aptType, setAptType] = useState('ANC Checkup');
-  const [aptDate, setAptDate] = useState('2024-05-15');
+  const [aptDate, setAptDate] = useState('2026-05-18');
   const [aptTime, setAptTime] = useState('10:00 AM');
+
+  const lang = t[language];
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -49,7 +242,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     router.push('/login');
   };
 
-  const patientName = user?.user_metadata?.full_name || 'Roshan';
+  const patientName = user?.user_metadata?.full_name || 'Roshan Sahani';
   const abhaId = '91-8402-1928-3012';
 
   // 108 Ambulance ETA Timer
@@ -63,7 +256,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     return () => clearInterval(timer);
   }, [isEmergencyModalOpen, etaMins]);
 
-  // Function: Trigger 108 Emergency & Broadcast to Doctor / Admin Portals
+  // Trigger 108 Emergency
   const handleTrigger108Emergency = async () => {
     setIsEmergencyModalOpen(true);
     setEtaMins(8);
@@ -88,12 +281,9 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         spo2: 95,
         temperature: 99.1,
       },
-      ai_summary:
-        `PATIENT EMERGENCY CALL: Patient ${patientName} triggered 108 ALS Ambulance from Patient Portal. Immediate Medical Transport requested.`,
-      recommended_action:
-        'Dispatch 108 ALS Unit MH-14-EM-1084 immediately to Dhamangaon PHC Sub-center.',
-      marathi_translation:
-        'रुग्णाने थेट १०८ रुग्णवाहिका मागवली आहे. धामणगाव उपकेंद्रावर रुग्णवाहिका पाठवा.',
+      ai_summary: `PATIENT EMERGENCY CALL: Patient ${patientName} triggered 108 ALS Ambulance from Patient Portal.`,
+      recommended_action: 'Dispatch 108 ALS Unit MH-14-EM-1084 immediately to Dhamangaon PHC Sub-center.',
+      marathi_translation: 'रुग्णाने थेट १०८ रुग्णवाहिका मागवली आहे. धामणगाव उपकेंद्रावर रुग्णवाहिका पाठवा.',
       target_facility: 'Sub-District Hospital (SDH) Karjat - Emergency Unit',
       department: 'Emergency & Trauma Care',
       status: 'pending',
@@ -103,23 +293,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
       ambulance_eta_mins: 8,
     };
 
-    // 1. Save to Supabase
-    const supabase = createClient();
-    try {
-      await supabase.from('referrals').insert({
-        target_facility: emergencyPayload.target_facility,
-        department: emergencyPayload.department,
-        urgency: 'RED',
-        clinical_notes: emergencyPayload.ai_summary,
-        status: 'pending',
-        ambulance_dispatched: true,
-        ambulance_eta_mins: 8,
-      });
-    } catch (err) {
-      console.warn('Supabase referral insert info:', err);
-    }
-
-    // 2. Save local Dexie backup
+    // Save local Dexie backup
     try {
       await saveVisitOffline({
         name: patientName,
@@ -135,13 +309,13 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
       console.warn('Dexie save visit info:', e);
     }
 
-    // 3. Dispatch Custom Event so Doctor / Admin dashboards update live!
+    // Broadcast to Doctor / Admin / ASHA dashboards live
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('arogya-mock-red-alert', { detail: emergencyPayload }));
       window.dispatchEvent(new CustomEvent('arogya-patient-emergency', { detail: emergencyPayload }));
     }
 
-    showToast('🚨 108 Emergency Call Transmitted! Doctor & Dispatcher Notified.');
+    showToast(lang.emergencyTransmitted);
   };
 
   const handleSendChatMessage = (e: React.FormEvent) => {
@@ -163,17 +337,118 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         ...prev,
         {
           sender: 'ASHA Sunita',
-          text: 'Thank you for reaching out, Roshan. I have noted your request and will follow up with PHC Karjat doctor.',
+          text: language === 'mr'
+            ? `नमस्ते ${patientName}! तुमचा संदेश मिळाला. मी धामणगाव प्रा.आ.कें. डॉक्टरांशी चर्चा करून तुम्हाला कळवते.`
+            : `Thank you for reaching out, ${patientName}. I have noted your request and will coordinate with PHC Karjat doctor.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     }, 1500);
   };
 
+  // Format date helper: 2026-05-18 -> 18 May 2026
+  const formatDateDisplay = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  // Handle Book Appointment
   const handleBookAppointment = (e: React.FormEvent) => {
     e.preventDefault();
+    const formattedDate = formatDateDisplay(aptDate);
+
+    const newAppointment: AppointmentItem = {
+      id: 'apt-' + Date.now(),
+      type: aptType,
+      date: formattedDate,
+      rawDate: aptDate,
+      time: aptTime,
+      doctorOrAsha: aptType.includes('Doctor') ? 'Dr. Amit Deshmukh (MO Karjat PHC)' : 'Sunita More (ASHA)',
+      facility: 'Dhamangaon Sub-center / Karjat PHC',
+      status: 'CONFIRMED',
+      patientName: patientName,
+    };
+
+    const updatedList = [newAppointment, ...appointments];
+    setAppointments(updatedList);
+
+    // Persist to localStorage so other tabs and ASHA view see it
+    try {
+      localStorage.setItem('arogya_appointments', JSON.stringify(updatedList));
+    } catch (err) {
+      console.warn('LocalStorage error:', err);
+    }
+
+    const payload = {
+      ...newAppointment,
+      village: 'Dhamangaon (Ward 2)',
+      details: `${newAppointment.type} • Booked via Patient Portal`,
+      highRisk: newAppointment.type.includes('ANC'),
+    };
+
+    // 1. Same-window custom event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('arogya-new-appointment', {
+          detail: payload,
+        })
+      );
+    }
+
+    // 2. Cross-tab BroadcastChannel (instant inter-tab communication)
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('arogya_channel');
+        bc.postMessage({
+          type: 'NEW_APPOINTMENT',
+          payload: payload,
+        });
+        setTimeout(() => bc.close(), 1000);
+      }
+    } catch (err) {
+      console.warn('BroadcastChannel broadcast error:', err);
+    }
+
+    // 3. Supabase Realtime Channel
+    try {
+      const supabase = createClient();
+      const channel = supabase.channel('arogya_realtime');
+      channel.subscribe((status, err) => {
+        if (err) {
+          console.warn('Realtime channel error suppressed:', err);
+          return;
+        }
+        if (status === 'SUBSCRIBED') {
+          channel
+            .send({
+              type: 'broadcast',
+              event: 'new-appointment',
+              payload: payload,
+            })
+            .catch((e) => console.warn('Supabase broadcast send:', e));
+        }
+      });
+    } catch (err) {
+      console.warn('Supabase realtime error:', err);
+    }
+
     setIsBookAppointmentOpen(false);
-    showToast(`📅 Appointment booked for ${aptDate} at ${aptTime} (${aptType})`);
+
+    // Toast with language support
+    const successMsg = lang.bookingSuccess
+      .replace('{date}', formattedDate)
+      .replace('{time}', aptTime)
+      .replace('{type}', aptType);
+
+    showToast(successMsg);
+
+    // Switch to appointments tab so user immediately sees their booked appointment
+    setActiveTab('appointments');
   };
 
   return (
@@ -181,39 +456,29 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 border border-slate-700 animate-fadeIn">
-          <span className="material-symbols-outlined text-emerald-400 text-[18px]">info</span>
+          <span className="material-symbols-outlined text-emerald-400 text-[18px]">check_circle</span>
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Top Mobile Status & Header Bar */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 border-b border-slate-100 space-y-2">
-        {/* Status Bar Clock */}
-        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-1">
-          <span>9:41</span>
-          <div className="flex items-center gap-1.5 text-slate-800">
-            <span className="material-symbols-outlined text-[14px]">signal_cellular_alt</span>
-            <span className="material-symbols-outlined text-[14px]">wifi</span>
-            <span className="material-symbols-outlined text-[14px]">battery_full</span>
-          </div>
-        </div>
-
         {/* User Greeting & Header Actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => showToast('Patient Navigation Menu')}
-              className="text-slate-800 hover:text-slate-900 p-1 cursor-pointer"
+              onClick={() => setActiveTab('profile')}
+              className="w-9 h-9 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shadow-xs cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[26px]">menu</span>
+              RP
             </button>
             <div>
               <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight flex items-center gap-1">
-                Good Morning, {patientName}! 👋
+                {lang.greeting.replace('{name}', patientName)}
               </h1>
               <p className="text-[11px] font-medium text-slate-500 leading-none mt-0.5">
-                Take charge of your health today.
+                {lang.tagline}
               </p>
             </div>
           </div>
@@ -222,7 +487,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             {/* Notification Bell */}
             <button
               type="button"
-              onClick={() => showToast('3 Active Health Notifications')}
+              onClick={() => showToast(lang.notificationsCount)}
               className="relative p-2 text-slate-700 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-[24px]">notifications</span>
@@ -248,9 +513,9 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     onClick={() => {
                       setLanguage('mr');
                       setShowLanguageMenu(false);
-                      showToast('भाषा बदलली: मराठी');
+                      showToast(t.mr.languageSet);
                     }}
-                    className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between"
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between cursor-pointer"
                   >
                     <span>मराठी</span>
                     {language === 'mr' && <span className="text-emerald-600 font-bold">✓</span>}
@@ -259,9 +524,9 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     onClick={() => {
                       setLanguage('en');
                       setShowLanguageMenu(false);
-                      showToast('Language set to English');
+                      showToast(t.en.languageSet);
                     }}
-                    className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between"
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center justify-between cursor-pointer"
                   >
                     <span>English</span>
                     {language === 'en' && <span className="text-emerald-600 font-bold">✓</span>}
@@ -275,70 +540,51 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
 
       {/* Main Container Content */}
       <div className="p-4 space-y-4">
+        {/* ========================================================= */}
+        {/* TAB 1: HOME */}
+        {/* ========================================================= */}
         {activeTab === 'home' && (
           <>
             {/* HERO CARD: "Your Health Overview" */}
             <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-3xl p-5 shadow-xl relative overflow-hidden space-y-4">
-              {/* Graphic Illustration on Right */}
-              <div className="absolute right-2 top-2 bottom-2 w-32 flex items-center justify-end pointer-events-none opacity-95">
-                <div className="relative w-full h-full flex items-center justify-center">
-                  <img
-                    src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=300&auto=format&fit=crop&q=80"
-                    alt="Patient Health Illustration"
-                    className="w-24 h-24 rounded-full object-cover border-2 border-white/40 shadow-lg"
-                  />
-                  <div className="absolute bottom-1 right-2 w-8 h-8 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-md">
-                    <span className="material-symbols-outlined text-white text-[18px]">add</span>
-                  </div>
-                </div>
-              </div>
-
               {/* Title & Subtitle */}
               <div className="relative z-10 space-y-1">
-                <h2 className="text-lg font-black tracking-tight text-white">Your Health Overview</h2>
-                <p className="text-xs text-emerald-100 font-medium">Small steps, big impact!</p>
+                <h2 className="text-lg font-black tracking-tight text-white">{lang.healthOverview}</h2>
+                <p className="text-xs text-emerald-100 font-medium">{lang.overviewSubtitle}</p>
               </div>
 
               {/* 4 Glassmorphism Vitals Columns */}
               <div className="relative z-10 grid grid-cols-4 gap-2 pt-2 border-t border-white/20 text-center">
                 {/* Heart Rate */}
                 <div className="space-y-0.5">
-                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">
-                    favorite
-                  </span>
+                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">favorite</span>
                   <div className="text-sm font-black text-white leading-tight">72</div>
-                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">bpm</div>
-                  <div className="text-[9px] text-emerald-200 font-medium">Heart Rate</div>
+                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">{lang.bpm}</div>
+                  <div className="text-[9px] text-emerald-200 font-medium">{lang.heartRate}</div>
                 </div>
 
                 {/* Blood Pressure */}
                 <div className="space-y-0.5 border-l border-white/15 pl-1">
-                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">
-                    water_drop
-                  </span>
+                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">water_drop</span>
                   <div className="text-sm font-black text-white leading-tight">120/80</div>
-                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">mmHg</div>
-                  <div className="text-[9px] text-emerald-200 font-medium">Blood Pressure</div>
+                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">{lang.mmhg}</div>
+                  <div className="text-[9px] text-emerald-200 font-medium">{lang.bloodPressure}</div>
                 </div>
 
                 {/* Blood Sugar */}
                 <div className="space-y-0.5 border-l border-white/15 pl-1">
-                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">
-                    bloodtype
-                  </span>
+                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">bloodtype</span>
                   <div className="text-sm font-black text-white leading-tight">98</div>
-                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">mg/dL</div>
-                  <div className="text-[9px] text-emerald-200 font-medium">Blood Sugar</div>
+                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">{lang.mgdl}</div>
+                  <div className="text-[9px] text-emerald-200 font-medium">{lang.bloodSugar}</div>
                 </div>
 
                 {/* Weight */}
                 <div className="space-y-0.5 border-l border-white/15 pl-1">
-                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">
-                    medical_services
-                  </span>
+                  <span className="material-symbols-outlined text-emerald-200 text-[18px]">medical_services</span>
                   <div className="text-sm font-black text-white leading-tight">65</div>
-                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">kg</div>
-                  <div className="text-[9px] text-emerald-200 font-medium">Weight</div>
+                  <div className="text-[9px] text-emerald-100 font-semibold uppercase">{lang.kg}</div>
+                  <div className="text-[9px] text-emerald-200 font-medium">{lang.weight}</div>
                 </div>
               </div>
             </div>
@@ -346,17 +592,15 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             {/* "Connect with Your ASHA" BANNER */}
             <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-3xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-3">
-                <img
-                  src="https://images.unsplash.com/photo-1594824813566-8885565d8363?w=150&auto=format&fit=crop&q=80"
-                  alt="ASHA Worker Avatar"
-                  className="w-11 h-11 rounded-full object-cover border-2 border-emerald-400 shrink-0"
-                />
+                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xs flex items-center justify-center border-2 border-emerald-400 shrink-0 shadow-sm">
+                  AS
+                </div>
                 <div>
                   <h3 className="text-xs font-black text-slate-900 leading-tight">
-                    Connect with Your ASHA
+                    {lang.connectAsha}
                   </h3>
                   <p className="text-[10px] font-semibold text-emerald-800">
-                    ASHA Worker • Dhamangaon PHC
+                    {lang.ashaRole}
                   </p>
                 </div>
               </div>
@@ -366,13 +610,13 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                 className="bg-white hover:bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-full border border-emerald-300 shadow-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-[16px] text-emerald-600">chat</span>
-                <span>Contact ASHA</span>
+                <span>{lang.contactAsha}</span>
               </button>
             </div>
 
             {/* QUICK ACTIONS (8 Rounded Cards Grid) */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-extrabold text-slate-900">Quick Actions</h3>
+              <h3 className="text-sm font-extrabold text-slate-900">{lang.quickActions}</h3>
 
               <div className="grid grid-cols-4 gap-2.5">
                 {/* 1. Contact ASHA */}
@@ -384,7 +628,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">support_agent</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Contact ASHA
+                    {lang.contactAsha}
                   </span>
                 </button>
 
@@ -397,7 +641,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">airport_shuttle</span>
                   </div>
                   <span className="text-[11px] font-bold text-rose-700 leading-tight">
-                    Call Ambulance
+                    {lang.callAmbulance}
                   </span>
                 </button>
 
@@ -410,7 +654,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">calendar_month</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Book Appointment
+                    {lang.bookAppointment}
                   </span>
                 </button>
 
@@ -423,7 +667,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">pill</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Medicine Reminder
+                    {lang.medicineReminder}
                   </span>
                 </button>
 
@@ -436,7 +680,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">post_add</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Health Records
+                    {lang.healthRecords}
                   </span>
                 </button>
 
@@ -449,7 +693,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">science</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Lab Reports
+                    {lang.labReports}
                   </span>
                 </button>
 
@@ -462,7 +706,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">lightbulb</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Health Tips
+                    {lang.healthTips}
                   </span>
                 </button>
 
@@ -475,7 +719,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                     <span className="material-symbols-outlined text-[24px]">location_on</span>
                   </div>
                   <span className="text-[11px] font-bold text-slate-700 leading-tight">
-                    Nearby Services
+                    {lang.nearbyServices}
                   </span>
                 </button>
               </div>
@@ -484,12 +728,12 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             {/* HEALTH INSIGHTS SECTION */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold text-slate-900">Health Insights</h3>
+                <h3 className="text-sm font-extrabold text-slate-900">{lang.healthInsights}</h3>
                 <button
-                  onClick={() => showToast('Viewing complete Health Analytics')}
+                  onClick={() => showToast(language === 'mr' ? 'संपूर्ण आरोग्य माहिती' : 'Viewing complete Health Analytics')}
                   className="text-xs font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                 >
-                  View All
+                  {lang.viewAll}
                 </button>
               </div>
 
@@ -497,8 +741,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                 {/* Left Card: Health Score */}
                 <div className="bg-emerald-50/60 p-4 rounded-3xl border border-emerald-200/80 flex flex-col justify-between space-y-3">
                   <div>
-                    <h4 className="text-xs font-black text-slate-900">You're doing good!</h4>
-                    <p className="text-[10px] font-medium text-slate-500">Keep it up to stay healthy.</p>
+                    <h4 className="text-xs font-black text-slate-900">{lang.healthScoreGood}</h4>
+                    <p className="text-[10px] font-medium text-slate-500">{lang.healthScoreSubtitle}</p>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -506,7 +750,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                       <div className="text-xl font-black text-slate-900">
                         8.5<span className="text-xs text-slate-400 font-semibold">/10</span>
                       </div>
-                      <div className="text-[10px] font-bold text-emerald-700">Health Score</div>
+                      <div className="text-[10px] font-bold text-emerald-700">{lang.healthScore}</div>
                     </div>
 
                     {/* Progress Gauge */}
@@ -538,8 +782,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                         directions_walk
                       </span>
                       <div>
-                        <div className="text-[10px] font-bold text-slate-900">Walk</div>
-                        <div className="text-[9px] text-slate-500 font-medium">6,000 steps</div>
+                        <div className="text-[10px] font-bold text-slate-900">{lang.walk}</div>
+                        <div className="text-[9px] text-slate-500 font-medium">{lang.stepsCount}</div>
                       </div>
                     </div>
                     <span className="material-symbols-outlined text-slate-400 text-[16px]">chevron_right</span>
@@ -551,8 +795,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                         local_drinking
                       </span>
                       <div>
-                        <div className="text-[10px] font-bold text-slate-900">Water</div>
-                        <div className="text-[9px] text-slate-500 font-medium">5 glasses</div>
+                        <div className="text-[10px] font-bold text-slate-900">{lang.water}</div>
+                        <div className="text-[9px] text-slate-500 font-medium">{lang.glassesCount}</div>
                       </div>
                     </div>
                     <span className="material-symbols-outlined text-slate-400 text-[16px]">chevron_right</span>
@@ -564,8 +808,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                         bedtime
                       </span>
                       <div>
-                        <div className="text-[10px] font-bold text-slate-900">Sleep</div>
-                        <div className="text-[9px] text-slate-500 font-medium">7 hrs</div>
+                        <div className="text-[10px] font-bold text-slate-900">{lang.sleep}</div>
+                        <div className="text-[9px] text-slate-500 font-medium">{lang.hrsCount}</div>
                       </div>
                     </div>
                     <span className="material-symbols-outlined text-slate-400 text-[16px]">chevron_right</span>
@@ -576,7 +820,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
 
             {/* EMERGENCY SERVICES SECTION */}
             <div className="space-y-2.5">
-              <h3 className="text-sm font-extrabold text-slate-900">Emergency Services</h3>
+              <h3 className="text-sm font-extrabold text-slate-900">{lang.emergencyServices}</h3>
 
               <div className="grid grid-cols-2 gap-3">
                 {/* Call Ambulance */}
@@ -589,8 +833,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                       <span className="material-symbols-outlined text-[22px]">call</span>
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-rose-900 leading-tight">Call Ambulance</h4>
-                      <p className="text-[10px] font-bold text-rose-700">24x7 Emergency</p>
+                      <h4 className="text-xs font-black text-rose-900 leading-tight">{lang.callAmbulance}</h4>
+                      <p className="text-[10px] font-bold text-rose-700">{lang.emergency247}</p>
                     </div>
                   </div>
                   <span className="material-symbols-outlined text-rose-600 text-[18px]">chevron_right</span>
@@ -606,7 +850,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                       <span className="material-symbols-outlined text-[22px]">notifications_active</span>
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-rose-900 leading-tight">Emergency Helpline</h4>
+                      <h4 className="text-xs font-black text-rose-900 leading-tight">{lang.emergencyHelpline}</h4>
                       <p className="text-[10px] font-bold text-rose-700">108 / 104</p>
                     </div>
                   </div>
@@ -615,125 +859,178 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
               </div>
             </div>
 
-            {/* UPCOMING APPOINTMENTS SECTION */}
+            {/* UPCOMING APPOINTMENTS PREVIEW ON HOME */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-extrabold text-slate-900">Upcoming Appointments</h3>
+                <h3 className="text-sm font-extrabold text-slate-900">{lang.upcomingAppointments}</h3>
                 <button
-                  onClick={() => setIsBookAppointmentOpen(true)}
+                  onClick={() => setActiveTab('appointments')}
                   className="text-xs font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
                 >
-                  View All
+                  {lang.viewAll}
                 </button>
               </div>
 
-              <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  {/* Date Box */}
-                  <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center shrink-0">
-                    <span className="text-base font-black text-slate-900 leading-none">15</span>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">May</span>
-                  </div>
-
-                  {/* Appointment Info */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-extrabold text-slate-900">ANC Checkup</h4>
-                      <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        Confirmed
+              {appointments.length > 0 ? (
+                <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    {/* Date Box */}
+                    <div className="w-14 h-14 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col items-center justify-center text-center shrink-0">
+                      <span className="text-base font-black text-emerald-800 leading-none">
+                        {appointments[0].date.split(' ')[0]}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase">
+                        {appointments[0].date.split(' ')[1] || 'MAY'}
                       </span>
                     </div>
-                    <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
-                      10:00 AM • Sunita More
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium">Dhamangaon PHC</p>
-                  </div>
-                </div>
 
-                {/* Call Button */}
-                <button
-                  onClick={() => showToast('Calling ASHA Sunita More...')}
-                  className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 flex items-center justify-center shrink-0 cursor-pointer transition-colors border border-slate-200"
-                >
-                  <span className="material-symbols-outlined text-[20px]">call</span>
-                </button>
-              </div>
+                    {/* Appointment Info */}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-extrabold text-slate-900">{appointments[0].type}</h4>
+                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                          {lang.confirmed}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                        {appointments[0].time} • {appointments[0].doctorOrAsha}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium">{appointments[0].facility}</p>
+                    </div>
+                  </div>
+
+                  {/* Call Button */}
+                  <button
+                    onClick={() => showToast(`Calling ${appointments[0].doctorOrAsha}...`)}
+                    className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 flex items-center justify-center shrink-0 cursor-pointer transition-colors border border-slate-200"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">call</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs text-center text-xs text-slate-500 font-semibold py-6">
+                  {lang.noAppointments}
+                </div>
+              )}
             </div>
           </>
         )}
 
-        {/* TAB 2: APPOINTMENTS */}
+        {/* ========================================================= */}
+        {/* TAB 2: APPOINTMENTS (FULL DIRECTORY & BOOKING) */}
+        {/* ========================================================= */}
         {activeTab === 'appointments' && (
           <div className="space-y-4">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h2 className="text-base font-black text-slate-900">Your Appointments</h2>
-                  <p className="text-xs text-slate-500">Dhamangaon PHC & ASHA Visits</p>
+                  <h2 className="text-base font-black text-slate-900">{lang.yourAppointments}</h2>
+                  <p className="text-xs text-slate-500">{lang.appointmentsSubtitle}</p>
                 </div>
                 <button
                   onClick={() => setIsBookAppointmentOpen(true)}
-                  className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs hover:bg-emerald-500 cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-colors"
                 >
-                  + Book New
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  <span>{lang.bookNew}</span>
                 </button>
               </div>
 
               <div className="space-y-3">
-                <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
-                        Upcoming
-                      </span>
-                      <h3 className="text-sm font-extrabold text-slate-900 mt-1">ANC Routine Checkup</h3>
-                    </div>
-                    <span className="text-xs font-black text-emerald-800 bg-white px-2 py-1 rounded-xl border border-emerald-200">
-                      15 May
-                    </span>
+                {appointments.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 text-xs font-medium">
+                    {lang.noAppointments}
                   </div>
-                  <p className="text-xs text-slate-600">
-                    With <strong>Sunita More (ASHA)</strong> • 10:00 AM
-                  </p>
-                </div>
+                ) : (
+                  appointments.map((apt) => (
+                    <div
+                      key={apt.id}
+                      className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2 hover:bg-emerald-50 transition-colors"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
+                            {lang.confirmed}
+                          </span>
+                          <h3 className="text-sm font-extrabold text-slate-900 mt-1">{apt.type}</h3>
+                        </div>
+                        <span className="text-xs font-black text-emerald-800 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-xs">
+                          {apt.date}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-700 font-medium">
+                        {language === 'mr' ? 'सोबत:' : 'With'} <strong>{apt.doctorOrAsha}</strong> • {apt.time}
+                      </p>
+                      <div className="flex items-center justify-between pt-1 border-t border-emerald-200/50 text-[10px] text-slate-500">
+                        <span>{apt.facility}</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setAppointments(appointments.filter((a) => a.id !== apt.id));
+                              showToast(language === 'mr' ? 'भेट रद्द केली' : 'Appointment Cancelled');
+                            }}
+                            className="text-rose-600 hover:underline font-bold"
+                          >
+                            {lang.cancelAppointment}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
         )}
 
+        {/* ========================================================= */}
         {/* TAB 3: REPORTS */}
+        {/* ========================================================= */}
         {activeTab === 'reports' && (
           <div className="space-y-4">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <h2 className="text-base font-black text-slate-900">Diagnostic Reports</h2>
-                <p className="text-xs text-slate-500">Laboratory & Vitals History</p>
+                <h2 className="text-base font-black text-slate-900">{lang.diagnosticReports}</h2>
+                <p className="text-xs text-slate-500">{lang.reportsSubtitle}</p>
               </div>
 
-              <div className="space-y-2 text-xs">
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
                   <div>
                     <div className="font-bold text-slate-900">CBC Complete Blood Count</div>
-                    <div className="text-[10px] text-slate-500">12 May 2024 • Normal</div>
+                    <div className="text-[10px] text-emerald-700 font-semibold">12 May 2024 • Normal (Hb: 12.5 g/dL)</div>
                   </div>
                   <button
-                    onClick={() => showToast('Downloading Report PDF...')}
-                    className="text-xs font-bold text-emerald-600 hover:underline"
+                    onClick={() => showToast(language === 'mr' ? 'सीबीसी अहवाल डाऊनलोड होत आहे...' : 'Downloading CBC Report PDF...')}
+                    className="text-xs font-bold text-emerald-600 hover:underline bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
                   >
-                    Download
+                    {lang.download}
                   </button>
                 </div>
 
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
                   <div>
                     <div className="font-bold text-slate-900">Fasting Blood Sugar Test</div>
-                    <div className="text-[10px] text-slate-500">08 May 2024 • 98 mg/dL</div>
+                    <div className="text-[10px] text-emerald-700 font-semibold">08 May 2024 • 98 mg/dL (Normal)</div>
                   </div>
                   <button
-                    onClick={() => showToast('Downloading Report PDF...')}
-                    className="text-xs font-bold text-emerald-600 hover:underline"
+                    onClick={() => showToast(language === 'mr' ? 'शुगर अहवाल डाऊनलोड होत आहे...' : 'Downloading Sugar Report PDF...')}
+                    className="text-xs font-bold text-emerald-600 hover:underline bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
                   >
-                    Download
+                    {lang.download}
+                  </button>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
+                  <div>
+                    <div className="font-bold text-slate-900">ANC Routine Urine Screen</div>
+                    <div className="text-[10px] text-emerald-700 font-semibold">02 May 2024 • Clear / Sugar Nil</div>
+                  </div>
+                  <button
+                    onClick={() => showToast(language === 'mr' ? 'युरिन अहवाल डाऊनलोड होत आहे...' : 'Downloading Urine Report PDF...')}
+                    className="text-xs font-bold text-emerald-600 hover:underline bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
+                  >
+                    {lang.download}
                   </button>
                 </div>
               </div>
@@ -741,35 +1038,81 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
           </div>
         )}
 
+        {/* ========================================================= */}
         {/* TAB 4: PROFILE */}
+        {/* ========================================================= */}
         {activeTab === 'profile' && (
           <div className="space-y-4">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-600 text-white font-black text-xl flex items-center justify-center shadow-md">
+                <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xl flex items-center justify-center shadow-md">
                   RP
                 </div>
                 <div>
                   <h2 className="text-base font-black text-slate-900">{patientName}</h2>
                   <p className="text-xs text-slate-500 font-medium">ABHA ID: {abhaId}</p>
-                  <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full mt-1">
-                    PM-JAY Active
+                  <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full mt-1 border border-emerald-200">
+                    {lang.pmjayActive}
                   </span>
                 </div>
               </div>
 
+              {/* Personal Info & Work Association */}
+              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 space-y-2 text-xs text-slate-600">
+                <h4 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-wider">
+                  {lang.personalInfo}
+                </h4>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-slate-400 text-[16px]">location_on</span>
+                    <span>{lang.address}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-slate-400 text-[16px]">support_agent</span>
+                    <span className="font-semibold">{lang.assignedAsha}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-slate-400 text-[16px]">local_hospital</span>
+                    <span>{lang.primaryCenter}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Language Switcher in Profile */}
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-emerald-600 text-[20px]">translate</span>
+                  <span className="font-bold text-slate-800">
+                    {language === 'mr' ? 'भाषा: मराठी' : 'Language: English'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    const nextLang = language === 'mr' ? 'en' : 'mr';
+                    setLanguage(nextLang);
+                    showToast(nextLang === 'mr' ? t.mr.languageSet : t.en.languageSet);
+                  }}
+                  className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-bold text-emerald-700 shadow-xs hover:bg-slate-100 cursor-pointer"
+                >
+                  {language === 'mr' ? 'Switch to English' : 'मराठी निवडा'}
+                </button>
+              </div>
+
               <button
                 onClick={handleSignOut}
-                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs py-3 rounded-2xl transition-colors cursor-pointer"
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-3.5 rounded-2xl transition-colors cursor-pointer shadow-md flex items-center justify-center gap-2"
               >
-                Sign Out of Account
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+                <span>{lang.signOut}</span>
               </button>
             </div>
           </div>
         )}
       </div>
 
+      {/* ========================================================= */}
       {/* MODAL 1: 108 EMERGENCY AMBULANCE TRACKER MODAL */}
+      {/* ========================================================= */}
       {isEmergencyModalOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-300 space-y-5 animate-scaleUp">
@@ -829,17 +1172,17 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 2: ASHA CHAT MODAL */}
+      {/* ========================================================= */}
       {isAshaChatModalOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <img
-                  src="https://images.unsplash.com/photo-1594824813566-8885565d8363?w=150&auto=format&fit=crop&q=80"
-                  alt="ASHA Worker Avatar"
-                  className="w-9 h-9 rounded-full object-cover border border-emerald-400"
-                />
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xs flex items-center justify-center border border-emerald-400 shadow-xs">
+                  AS
+                </div>
                 <div>
                   <h3 className="text-xs font-extrabold text-slate-900">ASHA Sunita More</h3>
                   <span className="text-[9px] font-bold text-emerald-700 flex items-center gap-1">
@@ -878,7 +1221,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                 type="text"
                 value={inputMsg}
                 onChange={(e) => setInputMsg(e.target.value)}
-                placeholder="Type a message to ASHA..."
+                placeholder={language === 'mr' ? 'आशा ताईंना संदेश लिहा...' : 'Type a message to ASHA...'}
                 className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none"
               />
               <button
@@ -892,12 +1235,14 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 3: BOOK APPOINTMENT MODAL */}
+      {/* ========================================================= */}
       {isBookAppointmentOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-900">Book Doctor Appointment</h3>
+              <h3 className="text-base font-black text-slate-900">{lang.bookAppointmentModalTitle}</h3>
               <button
                 onClick={() => setIsBookAppointmentOpen(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
@@ -908,54 +1253,62 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
 
             <form onSubmit={handleBookAppointment} className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Consultation Type</label>
+                <label className="block font-bold text-slate-700 mb-1">{lang.consultType}</label>
                 <select
                   value={aptType}
                   onChange={(e) => setAptType(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-medium outline-none"
                 >
-                  <option value="ANC Checkup">ANC Checkup (Routine)</option>
-                  <option value="Routine Doctor Consult">Routine Doctor Consult (PHC)</option>
-                  <option value="ASHA Home Visit">ASHA Home Visit Checkup</option>
+                  <option value="ANC Checkup">ANC Routine Checkup (गरोदर माता तपासणी)</option>
+                  <option value="Routine Doctor Consult">Routine Doctor Consult (PHC Karjat)</option>
+                  <option value="ASHA Home Visit">ASHA Home Visit (गृहभेट तपासणी)</option>
+                  <option value="Immunization (Child)">Child Immunization (लसीकरण)</option>
+                  <option value="NCD Screening (BP/Sugar)">NCD Screening (रक्तदाब/साखर तपासणी)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Preferred Date</label>
+                <label className="block font-bold text-slate-700 mb-1">{lang.preferredDate}</label>
                 <input
                   type="date"
+                  required
                   value={aptDate}
                   onChange={(e) => setAptDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-medium outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Preferred Time Slot</label>
+                <label className="block font-bold text-slate-700 mb-1">{lang.preferredTime}</label>
                 <select
                   value={aptTime}
                   onChange={(e) => setAptTime(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-medium outline-none"
                 >
-                  <option value="10:00 AM">10:00 AM</option>
-                  <option value="02:00 PM">02:00 PM</option>
-                  <option value="04:30 PM">04:30 PM</option>
+                  <option value="10:00 AM">10:00 AM (Morning)</option>
+                  <option value="11:30 AM">11:30 AM (Morning)</option>
+                  <option value="02:00 PM">02:00 PM (Afternoon)</option>
+                  <option value="04:30 PM">04:30 PM (Evening)</option>
                 </select>
+              </div>
+
+              <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-[11px] text-emerald-800 font-medium">
+                {lang.ashaAssignedNotice}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsBookAppointmentOpen(false)}
-                  className="px-3 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-xl"
+                  className="px-3 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-xl cursor-pointer"
                 >
-                  Cancel
+                  {lang.cancel}
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl shadow-xs hover:bg-emerald-500 cursor-pointer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs cursor-pointer"
                 >
-                  Confirm Booking
+                  {lang.confirmBooking}
                 </button>
               </div>
             </form>
@@ -963,12 +1316,14 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 4: MEDICINE REMINDER MODAL */}
+      {/* ========================================================= */}
       {isMedicineReminderOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-900">Medicine Reminders</h3>
+              <h3 className="text-base font-black text-slate-900">{lang.medicineReminder}</h3>
               <button
                 onClick={() => setIsMedicineReminderOpen(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
@@ -980,7 +1335,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             <div className="space-y-2 text-xs">
               <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200 flex justify-between items-center">
                 <div>
-                  <div className="font-extrabold text-slate-900">Tab Iron & Folic Acid</div>
+                  <div className="font-extrabold text-slate-900">Tab Iron & Folic Acid (IFA)</div>
                   <div className="text-[10px] text-blue-700">1 Tablet Daily after lunch</div>
                 </div>
                 <span className="text-[10px] font-bold text-blue-800 bg-white px-2 py-1 rounded-xl border border-blue-200">
@@ -1002,12 +1357,14 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 5: HEALTH RECORDS MODAL */}
+      {/* ========================================================= */}
       {isHealthRecordsOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-900">Digital ABHA Health Records</h3>
+              <h3 className="text-base font-black text-slate-900">{lang.abhaCard}</h3>
               <button
                 onClick={() => setIsHealthRecordsOpen(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
@@ -1030,12 +1387,14 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 6: LAB REPORTS MODAL */}
+      {/* ========================================================= */}
       {isLabReportsOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-900">Lab Diagnostic Reports</h3>
+              <h3 className="text-base font-black text-slate-900">{lang.labReports}</h3>
               <button
                 onClick={() => setIsLabReportsOpen(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
@@ -1075,12 +1434,14 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 7: HEALTH TIPS MODAL */}
+      {/* ========================================================= */}
       {isHealthTipsOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-900">Daily Health Tips</h3>
+              <h3 className="text-base font-black text-slate-900">{lang.healthTips}</h3>
               <button
                 onClick={() => setIsHealthTipsOpen(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
@@ -1104,12 +1465,14 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
+      {/* ========================================================= */}
       {/* MODAL 8: NEARBY SERVICES MODAL */}
+      {/* ========================================================= */}
       {isNearbyServicesOpen && (
         <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-900">Nearby Health Services</h3>
+              <h3 className="text-base font-black text-slate-900">{lang.nearbyServices}</h3>
               <button
                 onClick={() => setIsNearbyServicesOpen(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
@@ -1133,54 +1496,57 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
         </div>
       )}
 
-      {/* Mobile Bottom Navigation Bar (Matching Screenshot) */}
+      {/* ========================================================= */}
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      {/* ========================================================= */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-between z-40 shadow-2xl">
         <button
           onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer ${
-            activeTab === 'home' ? 'text-emerald-600' : 'text-slate-500'
+          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer transition-colors ${
+            activeTab === 'home' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <span className="material-symbols-outlined text-[22px]">home</span>
-          <span>Home</span>
+          <span>{lang.home}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('appointments')}
-          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer ${
-            activeTab === 'appointments' ? 'text-emerald-600' : 'text-slate-500'
+          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer transition-colors ${
+            activeTab === 'appointments' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <span className="material-symbols-outlined text-[22px]">calendar_today</span>
-          <span>Appointments</span>
+          <span>{lang.appointments}</span>
         </button>
 
         {/* Center Floating Action Button (FAB) */}
         <button
           onClick={() => setIsBookAppointmentOpen(true)}
           className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-lg -mt-5 border-4 border-slate-50 transition-transform active:scale-95 cursor-pointer"
+          title="Book Appointment"
         >
           <span className="material-symbols-outlined text-[28px]">add</span>
         </button>
 
         <button
           onClick={() => setActiveTab('reports')}
-          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer ${
-            activeTab === 'reports' ? 'text-emerald-600' : 'text-slate-500'
+          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer transition-colors ${
+            activeTab === 'reports' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <span className="material-symbols-outlined text-[22px]">bar_chart</span>
-          <span>Reports</span>
+          <span>{lang.reports}</span>
         </button>
 
         <button
           onClick={() => setActiveTab('profile')}
-          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer ${
-            activeTab === 'profile' ? 'text-emerald-600' : 'text-slate-500'
+          className={`flex flex-col items-center font-bold text-[10px] gap-0.5 cursor-pointer transition-colors ${
+            activeTab === 'profile' ? 'text-emerald-600' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <span className="material-symbols-outlined text-[22px]">person</span>
-          <span>Profile</span>
+          <span>{lang.profile}</span>
         </button>
       </div>
     </div>
