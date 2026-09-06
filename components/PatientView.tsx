@@ -254,7 +254,7 @@ const INITIAL_APPOINTMENTS: AppointmentItem[] = [
 
 export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
   const router = useRouter();
-  const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('mr');
+  const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('en');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'reports' | 'profile'>('home');

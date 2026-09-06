@@ -345,7 +345,7 @@ export const AshaView: React.FC<AshaViewProps> = ({
   user,
   onSignOut,
 }) => {
-  const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('mr');
+  const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('en');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'patients' | 'reports' | 'profile'>('home');
