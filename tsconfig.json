@@ -26,6 +26,10 @@
     "incremental": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "types": [
+      "node",
+      "jest"
+    ],
     "plugins": [
       {
         "name": "next"
