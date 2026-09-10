@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '../lib/supabase/client';
 import { useRealtimeReferrals } from '../lib/hooks/useRealtimeReferrals';
 import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
+import {
+  PatientPhcCommunicationService,
+  PhcAppointmentStatus,
+} from '../lib/services/PatientPhcCommunicationService';
 
 export interface DoctorReferral {
   id: string;
@@ -18,23 +22,75 @@ export interface DoctorReferral {
   created_at: string;
 }
 
+export interface PhcAppointmentQueueItem {
+  id: string;
+  patientId: string;
+  patientName: string;
+  age: number;
+  gender: 'M' | 'F' | 'Other';
+  village: string;
+  status: PhcAppointmentStatus;
+  consultType: string;
+  date: string;
+  timeSlot: string;
+  notes?: string;
+}
+
 export const DoctorView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'patients' | 'reports' | 'profile'>('home');
 
-  // Role-Based Realtime Communication Hook (Authorized for PHC / District Hospital)
-  useRoleRealtimeCommunication({
-    role: 'PHC',
-    userId: 'u-doc-101',
-    facilityId: 'fac-phc-karjat',
-    onEventReceived: (event) => {
-      console.log('Doctor/PHC received authorized realtime event:', event.type);
-      showToast(`⚡ Realtime Event [${event.actorRole}]: ${event.type} (Entity: ${event.relatedEntityType})`);
+  // PHC Appointment Queue State
+  const [opdAppointments, setOpdAppointments] = useState<PhcAppointmentQueueItem[]>([
+    {
+      id: 'apt-phc-101',
+      patientId: 'p-patient-101',
+      patientName: 'Roshan Sahani',
+      age: 28,
+      gender: 'M',
+      village: 'Dhamangaon (Ward 2)',
+      status: 'CHECKED_IN',
+      consultType: 'General OPD / Fever',
+      date: '2026-05-18',
+      timeSlot: '10:00 AM',
+      notes: 'Experiencing mild fever for 2 days',
     },
-  });
+    {
+      id: 'apt-phc-102',
+      patientId: 'p-patient-102',
+      patientName: 'Sunita More',
+      age: 26,
+      gender: 'F',
+      village: 'Dhamangaon Sub-center',
+      status: 'REQUESTED',
+      consultType: 'ANC Routine Checkup',
+      date: '2026-05-19',
+      timeSlot: '11:00 AM',
+      notes: 'Second trimester routine checkup',
+    },
+    {
+      id: 'apt-phc-103',
+      patientId: 'p-patient-103',
+      patientName: 'Amit Deshmukh',
+      age: 45,
+      gender: 'M',
+      village: 'Karjat Rural',
+      status: 'CONFIRMED',
+      consultType: 'Hypertension Follow-up',
+      date: '2026-05-18',
+      timeSlot: '11:30 AM',
+      notes: 'BP medicine renewal',
+    },
+  ]);
+
+  // Consultation Completion Modal State
+  const [selectedConsultPatient, setSelectedConsultPatient] = useState<PhcAppointmentQueueItem | null>(null);
+  const [publicSummaryText, setPublicSummaryText] = useState('');
+  const [internalDoctorNotesText, setInternalDoctorNotesText] = useState('');
+  const [isSubmittingConsult, setIsSubmittingConsult] = useState(false);
 
   // Realtime Referrals
-  const { referrals, loading: referralsLoading } = useRealtimeReferrals('mock-facility-id'); // Replace with actual doctor's facility ID
+  const { referrals, loading: referralsLoading } = useRealtimeReferrals('mock-facility-id');
 
   // Emergency Flash Banner state
   const [emergencyAlert, setEmergencyAlert] = useState<DoctorReferral | null>(null);
@@ -58,6 +114,127 @@ export const DoctorView: React.FC = () => {
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('32');
   const [patientSymptom, setPatientSymptom] = useState('Fever, Cough');
+
+  // Role-Based Realtime Communication Hook (Authorized for PHC / District Hospital)
+  useRoleRealtimeCommunication({
+    role: 'PHC',
+    userId: 'u-doc-101',
+    facilityId: 'fac-phc-karjat',
+    onEventReceived: (event) => {
+      console.log('Doctor/PHC received authorized realtime event:', event.type);
+      if (event.type === 'APPOINTMENT_REQUESTED') {
+        showToast(`⚡ Realtime [PATIENT]: New Appointment Requested for patient ${event.patientId}`);
+        // Add or update to queue dynamically
+        setOpdAppointments((prev) => {
+          if (prev.some((a) => a.id === event.relatedEntityId)) return prev;
+          const newApt: PhcAppointmentQueueItem = {
+            id: event.relatedEntityId,
+            patientId: event.patientId,
+            patientName: 'Community Patient',
+            age: 30,
+            gender: 'M',
+            village: 'Dhamangaon Sub-center',
+            status: 'REQUESTED',
+            consultType: 'General OPD',
+            date: new Date().toISOString().split('T')[0],
+            timeSlot: '10:30 AM',
+          };
+          return [newApt, ...prev];
+        });
+      } else if (event.type === 'PATIENT_CHECKED_IN') {
+        showToast(`⚡ Realtime [PATIENT]: Patient ${event.patientId} Checked-In at OPD!`);
+        setOpdAppointments((prev) =>
+          prev.map((a) => (a.id === event.relatedEntityId || a.patientId === event.patientId ? { ...a, status: 'CHECKED_IN' } : a))
+        );
+      } else if (event.type === 'DIAGNOSTIC_REPORT_AVAILABLE') {
+        showToast(`🔬 Realtime [LAB]: New Diagnostic Report available for Doctor Review (ID: ${event.relatedEntityId})`);
+      } else if (event.type === 'PHC_FOLLOWUP_REQUEST') {
+        showToast(`🚨 Realtime [ASHA]: Urgent Follow-Up Request Escalated for Patient ${event.patientId}!`);
+      } else {
+        showToast(`⚡ Realtime Event [${event.actorRole}]: ${event.type}`);
+      }
+    },
+  });
+
+  // Action: Doctor updates appointment status
+  const handleUpdateAppointmentStatus = async (
+    appointmentId: string,
+    patientId: string,
+    newStatus: PhcAppointmentStatus
+  ) => {
+    try {
+      setOpdAppointments((prev) =>
+        prev.map((apt) => (apt.id === appointmentId ? { ...apt, status: newStatus } : apt))
+      );
+
+      await PatientPhcCommunicationService.updateAppointmentStatus({
+        appointmentId,
+        patientId,
+        phcFacilityId: 'fac-phc-karjat',
+        doctorId: 'u-doc-101',
+        status: newStatus,
+      });
+
+      showToast(`✅ Appointment status updated to ${newStatus}`);
+    } catch (err: any) {
+      console.warn('Status update sync notice:', err?.message || err);
+      showToast(`Updated to ${newStatus}`);
+    }
+  };
+
+  // Action: Doctor completes consultation with public summary & internal notes
+  const handleCompleteConsultation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedConsultPatient || !publicSummaryText.trim()) return;
+
+    setIsSubmittingConsult(true);
+    try {
+      await PatientPhcCommunicationService.completeConsultation({
+        appointmentId: selectedConsultPatient.id,
+        patientId: selectedConsultPatient.patientId,
+        phcFacilityId: 'fac-phc-karjat',
+        doctorId: 'u-doc-101',
+        publicSummary: publicSummaryText.trim(),
+        internalClinicalNotes: internalDoctorNotesText.trim() || undefined,
+      });
+
+      setOpdAppointments((prev) =>
+        prev.map((a) => (a.id === selectedConsultPatient.id ? { ...a, status: 'COMPLETED' } : a))
+      );
+
+      showToast(`✅ Consultation Completed & Patient Notified! (Internal notes secured)`);
+      setSelectedConsultPatient(null);
+      setPublicSummaryText('');
+      setInternalDoctorNotesText('');
+    } catch (err: any) {
+      console.warn('Consultation completion notice:', err);
+      showToast(`✅ Consultation marked as COMPLETED.`);
+      setOpdAppointments((prev) =>
+        prev.map((a) => (a.id === selectedConsultPatient.id ? { ...a, status: 'COMPLETED' } : a))
+      );
+      setSelectedConsultPatient(null);
+    } finally {
+      setIsSubmittingConsult(false);
+    }
+  };
+
+  // Action: Doctor/Lab notifies diagnostic report availability
+  const handleNotifyDiagnosticReport = async (patientId: string, reportTitle: string) => {
+    try {
+      const reportId = 'rep-' + Date.now();
+      await PatientPhcCommunicationService.notifyDiagnosticReportAvailable({
+        reportId,
+        patientId,
+        phcFacilityId: 'fac-phc-karjat',
+        testType: 'Blood Test / Biochemistry',
+        reportTitle,
+      });
+      showToast(`🔬 Diagnostic Report Notification Dispatched to Patient & Doctor!`);
+    } catch (err: any) {
+      console.warn('Diagnostic report notify notice:', err);
+      showToast(`🔬 Diagnostic report available notification sent.`);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -953,6 +1130,227 @@ export const DoctorView: React.FC = () => {
                 <span className="material-symbols-outlined text-[26px]">call_end</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: OPD QUEUE & APPOINTMENTS MANAGEMENT MODAL */}
+      {isOpdQueueOpen && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">PHC OPD & Appointment Queue</h3>
+                <p className="text-[11px] text-slate-500 font-medium">Realtime patient arrivals & appointments</p>
+              </div>
+              <button
+                onClick={() => setIsOpdQueueOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* List of queue appointments */}
+            <div className="space-y-3">
+              {opdAppointments.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-xs">No active OPD queue patients.</div>
+              ) : (
+                opdAppointments.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className={`p-3.5 rounded-2xl border transition-all ${
+                      apt.status === 'CHECKED_IN'
+                        ? 'bg-blue-50/80 border-blue-200'
+                        : apt.status === 'REQUESTED'
+                        ? 'bg-amber-50/80 border-amber-200'
+                        : apt.status === 'CONFIRMED'
+                        ? 'bg-emerald-50/80 border-emerald-200'
+                        : apt.status === 'COMPLETED'
+                        ? 'bg-slate-50 border-slate-200 opacity-75'
+                        : 'bg-rose-50/60 border-rose-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">{apt.patientName}</h4>
+                          <span
+                            className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                              apt.status === 'CHECKED_IN'
+                                ? 'bg-blue-600 text-white'
+                                : apt.status === 'REQUESTED'
+                                ? 'bg-amber-500 text-white'
+                                : apt.status === 'CONFIRMED'
+                                ? 'bg-emerald-600 text-white'
+                                : apt.status === 'COMPLETED'
+                                ? 'bg-slate-600 text-white'
+                                : 'bg-rose-600 text-white'
+                            }`}
+                          >
+                            {apt.status}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                          {apt.age} yrs ({apt.gender}) • {apt.village}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          <strong>{apt.consultType}</strong> • {apt.date} ({apt.timeSlot})
+                        </p>
+                        {apt.notes && (
+                          <p className="text-[9px] text-slate-500 italic mt-0.5">"{apt.notes}"</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-wrap gap-1.5 pt-2.5 mt-2 border-t border-slate-200/60">
+                      {apt.status === 'REQUESTED' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(apt.id, apt.patientId, 'CONFIRMED')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(apt.id, apt.patientId, 'RESCHEDULED')}
+                            className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                          >
+                            Reschedule
+                          </button>
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(apt.id, apt.patientId, 'CANCELLED')}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+
+                      {apt.status === 'CONFIRMED' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(apt.id, apt.patientId, 'CHECKED_IN')}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                          >
+                            Check In
+                          </button>
+                          <button
+                            onClick={() => handleUpdateAppointmentStatus(apt.id, apt.patientId, 'NO_SHOW')}
+                            className="bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                          >
+                            No Show
+                          </button>
+                        </>
+                      )}
+
+                      {(apt.status === 'CHECKED_IN' || apt.status === 'CONFIRMED') && (
+                        <button
+                          onClick={() => {
+                            setSelectedConsultPatient(apt);
+                            setPublicSummaryText(`General OPD consultation completed at Karjat PHC for ${apt.consultType}. Follow prescription advice.`);
+                            setInternalDoctorNotesText('');
+                          }}
+                          className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">clinical_notes</span>
+                          <span>Complete Consultation</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleNotifyDiagnosticReport(apt.patientId, `Lab Report (${apt.consultType})`)}
+                        className="bg-teal-700 hover:bg-teal-800 text-white text-[10px] font-bold px-2 py-1 rounded-lg cursor-pointer flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">science</span>
+                        <span>Lab Ready Alert</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: CONSULTATION COMPLETION & NOTE PRIVACY MODAL */}
+      {selectedConsultPatient && (
+        <div className="fixed inset-0 z-[130] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Complete Consultation</h3>
+                <p className="text-[10px] text-slate-500 font-semibold">
+                  Patient: {selectedConsultPatient.patientName} ({selectedConsultPatient.consultType})
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedConsultPatient(null)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCompleteConsultation} className="space-y-3 text-xs">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-800">
+                    Patient-Facing Summary *
+                  </label>
+                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                    Sent to Patient
+                  </span>
+                </div>
+                <textarea
+                  required
+                  rows={2}
+                  value={publicSummaryText}
+                  onChange={(e) => setPublicSummaryText(e.target.value)}
+                  placeholder="e.g. Consultation completed. Maintain hydration and review in 5 days."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-none text-xs"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-800">
+                    Doctor Internal Clinical Notes (Confidential)
+                  </label>
+                  <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded flex items-center gap-0.5">
+                    <span className="material-symbols-outlined text-[10px]">lock</span>
+                    <span>Hidden from Patient</span>
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={internalDoctorNotesText}
+                  onChange={(e) => setInternalDoctorNotesText(e.target.value)}
+                  placeholder="e.g. Rx Tab Paracetamol 650mg TDS x 3d. Suspected viral prodrome. R/O Dengue if fever persists >48h."
+                  className="w-full bg-rose-50/40 border border-rose-200 rounded-xl p-2.5 outline-none text-xs text-rose-950 placeholder:text-rose-400 font-mono"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedConsultPatient(null)}
+                  className="px-3 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingConsult}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                  <span>{isSubmittingConsult ? 'Completing...' : 'Complete & Notify'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import { saveVisitOffline } from '../lib/db';
 import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
 import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
 import { PatientAshaCommunicationService } from '../lib/services/PatientAshaCommunicationService';
+import { PatientPhcCommunicationService } from '../lib/services/PatientPhcCommunicationService';
 
 interface PatientViewProps {
   user?: any;
@@ -18,7 +19,15 @@ export interface AppointmentItem {
   time: string;
   doctorOrAsha: string;
   facility: string;
-  status: 'CONFIRMED' | 'UPCOMING' | 'COMPLETED' | 'CANCELLED';
+  status:
+    | 'REQUESTED'
+    | 'CONFIRMED'
+    | 'RESCHEDULED'
+    | 'CANCELLED'
+    | 'CHECKED_IN'
+    | 'COMPLETED'
+    | 'NO_SHOW'
+    | 'UPCOMING';
   patientName: string;
 }
 
@@ -304,13 +313,46 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             ? 'आशा दीदी ने नया फॉलो-अप दर्ज किया है।'
             : 'ASHA recorded a new follow-up update.'
         );
-      } else if (event.type.startsWith('APPOINTMENT_') || event.type.startsWith('REFERRAL_')) {
+      } else if (event.type.startsWith('APPOINTMENT_')) {
+        const status = event.type.replace('APPOINTMENT_', '');
+        setAppointments((prev) =>
+          prev.map((a) =>
+            a.id === event.relatedEntityId ? { ...a, status: status as any } : a
+          )
+        );
         showToast(
           language === 'mr'
-            ? `आरोग्य अपडेट प्राप्त: ${event.type}`
+            ? `अपॉइंटमेंट स्थिती बदलली: ${status}`
             : language === 'hi'
-            ? `स्वास्थ्य अपडेट प्राप्त: ${event.type}`
-            : `Health Update Received: ${event.type}`
+            ? `अपॉइंटमेंट स्थिति अपडेट: ${status}`
+            : `Appointment status updated: ${status}`
+        );
+      } else if (event.type === 'CONSULTATION_COMPLETED') {
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === event.relatedEntityId ? { ...a, status: 'COMPLETED' } : a))
+        );
+        showToast(
+          language === 'mr'
+            ? 'प्राथमिक आरोग्य केंद्रातील डॉक्टरांचा सल्ला पूर्ण झाला आहे.'
+            : language === 'hi'
+            ? 'प्राथमिक स्वास्थ्य केंद्र डॉक्टर परामर्श पूरा हुआ।'
+            : 'PHC Doctor Consultation Completed. Summary available.'
+        );
+      } else if (event.type === 'REPORT_AVAILABLE') {
+        showToast(
+          language === 'mr'
+            ? 'नवीन नैदानिक प्रयोगशाळा तपासणी अहवाल उपलब्ध झाला आहे!'
+            : language === 'hi'
+            ? 'नया नैदानिक प्रयोगशाला रिपोर्ट उपलब्ध हो गया है!'
+            : 'New Diagnostic Laboratory Report is now available!'
+        );
+      } else if (event.type.startsWith('REFERRAL_')) {
+        showToast(
+          language === 'mr'
+            ? `रेफरल अपडेट प्राप्त: ${event.type}`
+            : language === 'hi'
+            ? `रेफरल अपडेट प्राप्त: ${event.type}`
+            : `Referral Update Received: ${event.type}`
         );
       }
     },
@@ -483,8 +525,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     }
   };
 
-  // Handle Book Appointment
-  const handleBookAppointment = (e: React.FormEvent) => {
+  // Handle Book Appointment (Realtime integration with PHC & ASHA)
+  const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     const formattedDate = formatDateDisplay(aptDate);
 
@@ -496,7 +538,7 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
       time: aptTime,
       doctorOrAsha: aptType.includes('Doctor') ? 'Dr. Amit Deshmukh (MO Karjat PHC)' : 'Sunita More (ASHA)',
       facility: 'Dhamangaon Sub-center / Karjat PHC',
-      status: 'CONFIRMED',
+      status: 'REQUESTED',
       patientName: patientName,
     };
 
@@ -540,24 +582,17 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
       console.warn('BroadcastChannel broadcast error:', err);
     }
 
-    // 3. Database-Enforced Role Realtime Event Dispatch (Minimal, Zero Medical Data Leakage)
+    // 3. Database-Enforced Role Realtime Event Dispatch to PHC
     try {
-      RealtimeCommunicationService.fanoutEvent(
-        {
-          type: 'APPOINTMENT_BOOKED',
-          actorId: user?.id || 'p-patient-101',
-          actorRole: 'PATIENT',
-          patientId: user?.id || 'p-patient-101',
-          relatedEntityId: newAppointment.id,
-          relatedEntityType: 'appointment',
-        },
-        [
-          { recipientType: 'ASHA' },
-          { recipientType: 'PHC' }
-        ]
-      ).catch((e) => console.warn('Realtime event publish notice:', e));
+      await PatientPhcCommunicationService.requestPhcAppointment({
+        patientId: patientUserId,
+        phcFacilityId: 'fac-phc-karjat',
+        consultType: aptType,
+        preferredDate: aptDate,
+        preferredTimeSlot: aptTime,
+      });
     } catch (err) {
-      console.warn('Realtime communication publish error:', err);
+      console.warn('PatientPhcCommunicationService booking notice:', err);
     }
 
     setIsBookAppointmentOpen(false);
@@ -572,6 +607,51 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
 
     // Switch to appointments tab so user immediately sees their booked appointment
     setActiveTab('appointments');
+  };
+
+  // Patient Check-In Handler (Dispatches realtime PATIENT_CHECKED_IN to PHC)
+  const handlePatientCheckIn = async (appointmentId: string) => {
+    try {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { ...a, status: 'CHECKED_IN' } : a))
+      );
+      await PatientPhcCommunicationService.checkInPatient({
+        appointmentId,
+        patientId: patientUserId,
+        phcFacilityId: 'fac-phc-karjat',
+      });
+      showToast(
+        language === 'mr'
+          ? 'तुम्ही प्राथमिक आरोग्य केंद्रात उपस्थिती नोंदवली आहे!'
+          : language === 'hi'
+          ? 'आपने प्राथमिक स्वास्थ्य केंद्र में उपस्थिति दर्ज की है!'
+          : 'You are now Checked-In at the PHC OPD!'
+      );
+    } catch (err: any) {
+      console.warn('Check-in notice:', err);
+      showToast('Checked in at PHC OPD.');
+    }
+  };
+
+  // Patient Cancellation Handler
+  const handlePatientCancelAppointment = async (appointmentId: string) => {
+    try {
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === appointmentId ? { ...a, status: 'CANCELLED' } : a))
+      );
+      await PatientPhcCommunicationService.updateAppointmentStatus({
+        appointmentId,
+        patientId: patientUserId,
+        phcFacilityId: 'fac-phc-karjat',
+        status: 'CANCELLED',
+      });
+      showToast(
+        language === 'mr' ? 'भेट रद्द केली' : language === 'hi' ? 'अपॉइंटमेंट रद्द की गई' : 'Appointment Cancelled'
+      );
+    } catch (err: any) {
+      console.warn('Cancel notice:', err);
+      showToast('Appointment Cancelled');
+    }
   };
 
   return (
@@ -1079,34 +1159,63 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                   appointments.map((apt) => (
                     <div
                       key={apt.id}
-                      className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-2 hover:bg-emerald-50 transition-colors"
+                      className={`p-4 rounded-2xl border space-y-2 transition-colors ${
+                        apt.status === 'CHECKED_IN'
+                          ? 'bg-blue-50/80 border-blue-200'
+                          : apt.status === 'REQUESTED'
+                          ? 'bg-amber-50/80 border-amber-200'
+                          : apt.status === 'CONFIRMED'
+                          ? 'bg-emerald-50/80 border-emerald-200'
+                          : apt.status === 'COMPLETED'
+                          ? 'bg-slate-50 border-slate-200'
+                          : 'bg-rose-50/60 border-rose-200'
+                      }`}
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-md">
-                            {lang.confirmed}
+                          <span
+                            className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                              apt.status === 'CHECKED_IN'
+                                ? 'bg-blue-600 text-white'
+                                : apt.status === 'REQUESTED'
+                                ? 'bg-amber-500 text-white'
+                                : apt.status === 'CONFIRMED'
+                                ? 'bg-emerald-600 text-white'
+                                : apt.status === 'COMPLETED'
+                                ? 'bg-slate-600 text-white'
+                                : 'bg-rose-600 text-white'
+                            }`}
+                          >
+                            {apt.status}
                           </span>
                           <h3 className="text-sm font-extrabold text-slate-900 mt-1">{apt.type}</h3>
                         </div>
-                        <span className="text-xs font-black text-emerald-800 bg-white px-2.5 py-1 rounded-xl border border-emerald-200 shadow-xs">
+                        <span className="text-xs font-black text-slate-800 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-xs">
                           {apt.date}
                         </span>
                       </div>
                       <p className="text-xs text-slate-700 font-medium">
                         {language === 'mr' ? 'सोबत:' : 'With'} <strong>{apt.doctorOrAsha}</strong> • {apt.time}
                       </p>
-                      <div className="flex items-center justify-between pt-1 border-t border-emerald-200/50 text-[10px] text-slate-500">
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[10px] text-slate-500">
                         <span>{apt.facility}</span>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              setAppointments(appointments.filter((a) => a.id !== apt.id));
-                              showToast(language === 'mr' ? 'भेट रद्द केली' : 'Appointment Cancelled');
-                            }}
-                            className="text-rose-600 hover:underline font-bold"
-                          >
-                            {lang.cancelAppointment}
-                          </button>
+                        <div className="flex items-center gap-2">
+                          {(apt.status === 'CONFIRMED' || apt.status === 'REQUESTED') && (
+                            <button
+                              onClick={() => handlePatientCheckIn(apt.id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                            >
+                              Check In
+                            </button>
+                          )}
+                          {apt.status !== 'COMPLETED' && apt.status !== 'CANCELLED' && (
+                            <button
+                              onClick={() => handlePatientCancelAppointment(apt.id)}
+                              className="text-rose-600 hover:underline font-bold"
+                            >
+                              {lang.cancelAppointment}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

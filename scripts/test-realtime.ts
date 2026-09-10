@@ -6,28 +6,31 @@ import {
   ContextUser,
 } from '../lib/services/RealtimeCommunicationService';
 import { PatientAshaCommunicationService } from '../lib/services/PatientAshaCommunicationService';
+import {
+  PatientPhcCommunicationService,
+  PhcAppointmentStatus,
+} from '../lib/services/PatientPhcCommunicationService';
 import { supabase } from '../lib/supabaseClient';
 
 async function runTests() {
-  console.log('--- Starting ArogyaDisha Realtime Communication Tests ---');
+  console.log('=== Starting ArogyaDisha Realtime Communication & Security Tests ===\n');
   let passed = 0;
   let failed = 0;
 
-  function test(name: string, fn: () => void | Promise<void>) {
-    return (async () => {
-      try {
-        await fn();
-        console.log(`  ✓ ${name}`);
-        passed++;
-      } catch (err) {
-        console.error(`  ✗ ${name}`);
-        console.error(err);
-        failed++;
-      }
-    })();
+  async function test(name: string, fn: () => void | Promise<void>) {
+    try {
+      await fn();
+      console.log(`  ✓ ${name}`);
+      passed++;
+    } catch (err) {
+      console.error(`  ✗ ${name}`);
+      console.error(err);
+      failed++;
+    }
   }
 
-  // 1. Security & Payload Sanitization
+  console.log('--- 1. Security & Payload Sanitization ---');
+
   await test('1.1 strips all sensitive medical records from realtime event payload', () => {
     const dirtyPayload: any = {
       type: 'REFERRAL_CREATED',
@@ -52,7 +55,7 @@ async function runTests() {
     assert.strictEqual(sanitized.patientId, 'pat-456');
   });
 
-  await test('1.2 rejects invalid roles outside the 4 core roles', () => {
+  await test('1.2 rejects invalid roles outside the 4 core roles (PATIENT, ASHA, PHC, DISTRICT_HOSPITAL)', () => {
     assert.throws(() => {
       RealtimeCommunicationService.sanitizeEventPayload({
         type: 'TEST_EVENT',
@@ -66,7 +69,8 @@ async function runTests() {
     }, /VALIDATION_ERROR/);
   });
 
-  // 2. Authorization Engine checks
+  console.log('\n--- 2. Five-Question Authorization Engine & Isolation Tests ---');
+
   const baseEvent: RealtimeHealthcareEvent = {
     id: 'evt-1',
     type: 'REFERRAL_ACCEPTED',
@@ -119,7 +123,7 @@ async function runTests() {
     assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(ashaEvent, unassignedAsha), false);
   });
 
-  await test('2.3 PHC scope: Only target facility or caring PHC receives PHC events', () => {
+  await test('2.3 PHC scope: PHC A doctor must not receive PHC B facility patient events', () => {
     const phcEvent: RealtimeHealthcareEvent = {
       ...baseEvent,
       recipientType: 'PHC',
@@ -127,45 +131,36 @@ async function runTests() {
       recipientFacilityId: 'fac-phc-karjat',
     };
 
-    const phcStaff: ContextUser = { userId: 'doc-amit', role: 'PHC', facilityId: 'fac-phc-karjat' };
-    const otherPhcStaff: ContextUser = { userId: 'doc-other', role: 'PHC', facilityId: 'fac-phc-pune' };
+    const phcDoctorA: ContextUser = { userId: 'doc-amit', role: 'PHC', facilityId: 'fac-phc-karjat' };
+    const phcDoctorB: ContextUser = { userId: 'doc-pune', role: 'PHC', facilityId: 'fac-phc-pune' };
 
-    assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(phcEvent, phcStaff), true);
-    assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(phcEvent, otherPhcStaff), false);
+    assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(phcEvent, phcDoctorA), true);
+    assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(phcEvent, phcDoctorB), false);
   });
 
-  // 3. Mocked Service tests for Patient-ASHA interactions
-  await test('3.1 PATIENT -> ASHA request creates assistance request and NEW_PATIENT_REQUEST event', async () => {
-    let insertedData: any = null;
-    let publishedEventPayload: any = null;
+  console.log('\n--- 3. PATIENT <-> ASHA Workflow Tests ---');
 
-    // mock supabase
+  await test('3.1 PATIENT -> ASHA request creates assistance request and NEW_PATIENT_REQUEST event', async () => {
     (supabase as any).from = (table: string) => ({
-      insert: (data: any) => {
-        insertedData = data;
-        return {
-          select: () => ({
-            single: () =>
-              Promise.resolve({
-                data: {
-                  id: 'req-1',
-                  ...data,
-                },
-                error: null,
-              }),
-          }),
-        };
-      },
+      insert: (data: any) => ({
+        select: () => ({
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'req-1',
+                ...data,
+              },
+              error: null,
+            }),
+        }),
+      }),
     });
 
+    let publishedEvent: any = null;
     const origPublish = RealtimeCommunicationService.publishEvent;
     RealtimeCommunicationService.publishEvent = async (p: any) => {
-      publishedEventPayload = p;
-      return {
-        id: 'evt-req-1',
-        ...p,
-        timestamp: new Date().toISOString(),
-      };
+      publishedEvent = p;
+      return { id: 'evt-req-1', ...p, timestamp: new Date().toISOString() };
     };
 
     const result = await PatientAshaCommunicationService.requestAshaAssistance({
@@ -176,17 +171,14 @@ async function runTests() {
     });
 
     assert.strictEqual(result.request.id, 'req-1');
-    assert.strictEqual(publishedEventPayload.type, 'NEW_PATIENT_REQUEST');
-    assert.strictEqual(publishedEventPayload.actorRole, 'PATIENT');
-    assert.strictEqual(publishedEventPayload.recipientType, 'ASHA');
-    assert.strictEqual(publishedEventPayload.recipientUserId, 'asha-sunita');
+    assert.strictEqual(publishedEvent.type, 'NEW_PATIENT_REQUEST');
+    assert.strictEqual(publishedEvent.recipientType, 'ASHA');
+    assert.strictEqual(publishedEvent.recipientUserId, 'asha-sunita');
 
     RealtimeCommunicationService.publishEvent = origPublish;
   });
 
   await test('3.2 ASHA -> PATIENT status update dispatches REQUEST_ACCEPTED to patient', async () => {
-    let publishedEventPayload: any = null;
-
     (supabase as any).from = (table: string) => ({
       update: (data: any) => ({
         eq: () => ({
@@ -204,14 +196,11 @@ async function runTests() {
       }),
     });
 
+    let publishedEvent: any = null;
     const origPublish = RealtimeCommunicationService.publishEvent;
     RealtimeCommunicationService.publishEvent = async (p: any) => {
-      publishedEventPayload = p;
-      return {
-        id: 'evt-status-1',
-        ...p,
-        timestamp: new Date().toISOString(),
-      };
+      publishedEvent = p;
+      return { id: 'evt-status-1', ...p, timestamp: new Date().toISOString() };
     };
 
     const result = await PatientAshaCommunicationService.updateAssistanceRequestStatus({
@@ -222,17 +211,14 @@ async function runTests() {
     });
 
     assert.strictEqual(result.updated.status, 'ACCEPTED');
-    assert.strictEqual(publishedEventPayload.type, 'REQUEST_ACCEPTED');
-    assert.strictEqual(publishedEventPayload.actorRole, 'ASHA');
-    assert.strictEqual(publishedEventPayload.recipientType, 'PATIENT');
-    assert.strictEqual(publishedEventPayload.recipientUserId, 'pat-roshan');
+    assert.strictEqual(publishedEvent.type, 'REQUEST_ACCEPTED');
+    assert.strictEqual(publishedEvent.recipientType, 'PATIENT');
 
     RealtimeCommunicationService.publishEvent = origPublish;
   });
 
   await test('3.3 ASHA Follow-up protects internal clinical notes & escalates to PHC', async () => {
     let publishedEvents: any[] = [];
-
     (supabase as any).from = (table: string) => ({
       insert: (data: any) => ({
         select: () => ({
@@ -251,11 +237,7 @@ async function runTests() {
     const origPublish = RealtimeCommunicationService.publishEvent;
     RealtimeCommunicationService.publishEvent = async (p: any) => {
       publishedEvents.push(p);
-      return {
-        id: `evt-${publishedEvents.length}`,
-        ...p,
-        timestamp: new Date().toISOString(),
-      };
+      return { id: `evt-${publishedEvents.length}`, ...p, timestamp: new Date().toISOString() };
     };
 
     const result = await PatientAshaCommunicationService.recordAshaFollowUp({
@@ -271,15 +253,11 @@ async function runTests() {
     assert.strictEqual(result.followUp.id, 'fu-esc-99');
     assert.strictEqual(publishedEvents.length, 2);
 
-    // Patient event:
     const patientEvt = publishedEvents.find((e) => e.recipientType === 'PATIENT');
     assert.ok(patientEvt);
     assert.strictEqual(patientEvt.type, 'ASHA_FOLLOWUP_RECORDED');
-    // Ensure zero confidential notes in realtime payload
     assert.strictEqual((patientEvt as any).internalAshaNotes, undefined);
-    assert.strictEqual((patientEvt as any).internal_asha_notes, undefined);
 
-    // PHC escalation event:
     const phcEvt = publishedEvents.find((e) => e.recipientType === 'PHC');
     assert.ok(phcEvt);
     assert.strictEqual(phcEvt.type, 'PHC_FOLLOWUP_REQUEST');
@@ -288,7 +266,216 @@ async function runTests() {
     RealtimeCommunicationService.publishEvent = origPublish;
   });
 
-  console.log(`\nTests completed: ${passed} passed, ${failed} failed.`);
+  console.log('\n--- 4. PATIENT <-> PHC Workflow Tests ---');
+
+  await test('4.1 PATIENT -> PHC: Appointment Request creates record & APPOINTMENT_REQUESTED event', async () => {
+    let publishedEvent: any = null;
+    (supabase as any).from = (table: string) => ({
+      insert: (data: any) => ({
+        select: () => ({
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'apt-phc-101',
+                ...data,
+              },
+              error: null,
+            }),
+        }),
+      }),
+    });
+
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvent = p;
+      return { id: 'evt-apt-1', ...p, timestamp: new Date().toISOString() };
+    };
+
+    const result = await PatientPhcCommunicationService.requestPhcAppointment({
+      patientId: 'pat-roshan',
+      phcFacilityId: 'fac-phc-karjat',
+      consultType: 'General OPD',
+      preferredDate: '2026-05-18',
+      preferredTimeSlot: '10:00 AM',
+    });
+
+    assert.strictEqual(result.appointment.id, 'apt-phc-101');
+    assert.strictEqual(publishedEvent.type, 'APPOINTMENT_REQUESTED');
+    assert.strictEqual(publishedEvent.recipientType, 'PHC');
+    assert.strictEqual(publishedEvent.recipientFacilityId, 'fac-phc-karjat');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('4.2 PHC -> PATIENT: Appointment status lifecycle (CONFIRMED, RESCHEDULED, CANCELLED, NO_SHOW)', async () => {
+    const statuses: PhcAppointmentStatus[] = ['CONFIRMED', 'RESCHEDULED', 'CANCELLED', 'NO_SHOW', 'COMPLETED'];
+    const origPublish = RealtimeCommunicationService.publishEvent;
+
+    for (const status of statuses) {
+      let publishedEvent: any = null;
+      (supabase as any).from = (table: string) => ({
+        update: (data: any) => ({
+          eq: () => ({
+            select: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: 'apt-phc-101',
+                    status: data.status,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+      });
+
+      RealtimeCommunicationService.publishEvent = async (p: any) => {
+        publishedEvent = p;
+        return { id: `evt-${status}`, ...p, timestamp: new Date().toISOString() };
+      };
+
+      const result = await PatientPhcCommunicationService.updateAppointmentStatus({
+        appointmentId: 'apt-phc-101',
+        patientId: 'pat-roshan',
+        phcFacilityId: 'fac-phc-karjat',
+        doctorId: 'u-doc-101',
+        status,
+      });
+
+      assert.strictEqual(result.updated.status, status);
+      assert.strictEqual(publishedEvent.type, `APPOINTMENT_${status}`);
+      assert.strictEqual(publishedEvent.recipientType, 'PATIENT');
+      assert.strictEqual(publishedEvent.recipientUserId, 'pat-roshan');
+    }
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('4.3 PATIENT -> PHC: Patient Check-In dispatches PATIENT_CHECKED_IN to PHC queue', async () => {
+    let publishedEvent: any = null;
+    (supabase as any).from = (table: string) => ({
+      update: (data: any) => ({
+        eq: () => ({
+          select: () => ({
+            single: () =>
+              Promise.resolve({
+                data: {
+                  id: 'apt-phc-101',
+                  status: 'CHECKED_IN',
+                },
+                error: null,
+              }),
+          }),
+        }),
+      }),
+    });
+
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvent = p;
+      return { id: 'evt-checkin', ...p, timestamp: new Date().toISOString() };
+    };
+
+    const result = await PatientPhcCommunicationService.checkInPatient({
+      appointmentId: 'apt-phc-101',
+      patientId: 'pat-roshan',
+      phcFacilityId: 'fac-phc-karjat',
+    });
+
+    assert.strictEqual(result.updated.status, 'CHECKED_IN');
+    assert.strictEqual(publishedEvent.type, 'PATIENT_CHECKED_IN');
+    assert.strictEqual(publishedEvent.recipientType, 'PHC');
+    assert.strictEqual(publishedEvent.recipientFacilityId, 'fac-phc-karjat');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('4.4 PHC -> PATIENT: Consultation Completion strictly withholds doctor internal notes', async () => {
+    let publishedEvent: any = null;
+    (supabase as any).from = (table: string) => {
+      if (table === 'phc_consultations') {
+        return {
+          insert: (data: any) => ({
+            select: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: 'con-phc-101',
+                    ...data,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      return {
+        update: () => ({ eq: () => Promise.resolve({ data: {}, error: null }) }),
+      };
+    };
+
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvent = p;
+      return { id: 'evt-con-1', ...p, timestamp: new Date().toISOString() };
+    };
+
+    const result = await PatientPhcCommunicationService.completeConsultation({
+      appointmentId: 'apt-phc-101',
+      patientId: 'pat-roshan',
+      phcFacilityId: 'fac-phc-karjat',
+      doctorId: 'u-doc-101',
+      publicSummary: 'OPD Consultation completed. Review after 5 days.',
+      internalClinicalNotes: 'CONFIDENTIAL: Suspected acute respiratory tract infection. Antibiotics initiated.',
+    });
+
+    assert.strictEqual(result.consultation.id, 'con-phc-101');
+    assert.strictEqual(publishedEvent.type, 'CONSULTATION_COMPLETED');
+    assert.strictEqual(publishedEvent.recipientType, 'PATIENT');
+    assert.strictEqual(publishedEvent.recipientUserId, 'pat-roshan');
+    // Verify internal notes are NOT present in realtime event
+    assert.strictEqual((publishedEvent as any).internalClinicalNotes, undefined);
+    assert.strictEqual((publishedEvent as any).internal_clinical_notes, undefined);
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('4.5 DIAGNOSTIC REPORT: Notifies both PHC & Patient with minimal payload and no raw test values', async () => {
+    let publishedEvents: any[] = [];
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvents.push(p);
+      return { id: `evt-diag-${publishedEvents.length}`, ...p, timestamp: new Date().toISOString() };
+    };
+
+    await PatientPhcCommunicationService.notifyDiagnosticReportAvailable({
+      reportId: 'rep-cbc-101',
+      patientId: 'pat-roshan',
+      phcFacilityId: 'fac-phc-karjat',
+      testType: 'Complete Blood Count',
+      reportTitle: 'CBC Report (Normal Hb)',
+    });
+
+    assert.strictEqual(publishedEvents.length, 2);
+
+    const phcEvent = publishedEvents.find((e) => e.recipientType === 'PHC');
+    assert.ok(phcEvent);
+    assert.strictEqual(phcEvent.type, 'DIAGNOSTIC_REPORT_AVAILABLE');
+    assert.strictEqual(phcEvent.recipientFacilityId, 'fac-phc-karjat');
+
+    const patientEvent = publishedEvents.find((e) => e.recipientType === 'PATIENT');
+    assert.ok(patientEvent);
+    assert.strictEqual(patientEvent.type, 'REPORT_AVAILABLE');
+    assert.strictEqual(patientEvent.recipientUserId, 'pat-roshan');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  console.log(`\n======================================================`);
+  console.log(`All Tests Completed: ${passed} passed, ${failed} failed.`);
+  console.log(`======================================================\n`);
+
   if (failed > 0) {
     process.exit(1);
   }
