@@ -34,8 +34,9 @@ export function useRealtimeNotifications(userId: string) {
 
     fetchInitial();
 
+    const instanceId = Math.random().toString(36).substring(2, 9);
     const subscription = supabase
-      .channel(`user_notifications_${userId}`)
+      .channel(`user_notifications_${userId}_${instanceId}`)
       .on(
         'postgres_changes',
         {

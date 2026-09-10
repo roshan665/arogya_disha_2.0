@@ -24,8 +24,9 @@ export function useRealtimeQueue(facilityId: string, doctorId?: string) {
     fetchQueue();
 
     // Subscribe strictly to the appointments table for real-time queue shuffling
+    const instanceId = Math.random().toString(36).substring(2, 9);
     const subscription = supabase
-      .channel(`facility_queue_${facilityId}`)
+      .channel(`facility_queue_${facilityId}_${instanceId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'appointments' },

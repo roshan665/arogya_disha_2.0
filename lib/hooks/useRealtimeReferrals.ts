@@ -31,8 +31,9 @@ export function useRealtimeReferrals(facilityId: string) {
     fetchInitial();
 
     // 2. Real-time Subscription
+    const instanceId = Math.random().toString(36).substring(2, 9);
     const subscription = supabase
-      .channel(`facility_referrals_${facilityId}`)
+      .channel(`facility_referrals_${facilityId}_${instanceId}`)
       .on(
         'postgres_changes',
         {

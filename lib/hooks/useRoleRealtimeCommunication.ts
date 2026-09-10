@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import {
   RealtimeRole,
@@ -23,6 +23,12 @@ export function useRoleRealtimeCommunication({
   const [latestEvent, setLatestEvent] = useState<RealtimeHealthcareEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Keep a stable ref to onEventReceived callback to avoid re-subscribing on render
+  const onEventReceivedRef = useRef(onEventReceived);
+  useEffect(() => {
+    onEventReceivedRef.current = onEventReceived;
+  }, [onEventReceived]);
 
   // 1. Initial Fetch of recent authorized events for this user/role
   const fetchRecentEvents = useCallback(async () => {
@@ -67,7 +73,8 @@ export function useRoleRealtimeCommunication({
     fetchRecentEvents();
 
     // 2. Scoped Realtime Channel backed by PostgreSQL Row Level Security (RLS)
-    const channelName = `auth_role_events_${role.toLowerCase()}_${userId}`;
+    const instanceId = Math.random().toString(36).substring(2, 9);
+    const channelName = `auth_role_events_${role.toLowerCase()}_${userId}_${instanceId}`;
     const channel = supabase
       .channel(channelName)
       .on(
@@ -98,9 +105,7 @@ export function useRoleRealtimeCommunication({
           setEvents((prev) => [eventItem, ...prev.slice(0, 49)]);
           setLatestEvent(eventItem);
 
-          if (onEventReceived) {
-            onEventReceived(eventItem);
-          }
+          onEventReceivedRef.current?.(eventItem);
         }
       )
       .subscribe((status, err) => {
@@ -119,7 +124,7 @@ export function useRoleRealtimeCommunication({
         console.warn('Error removing realtime channel:', e);
       }
     };
-  }, [role, userId, facilityId, onEventReceived, fetchRecentEvents]);
+  }, [role, userId, facilityId, fetchRecentEvents]);
 
   return {
     events,

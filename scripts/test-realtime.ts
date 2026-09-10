@@ -20,6 +20,11 @@ import {
   UserMessagingContext,
   ConversationRecord,
 } from '../lib/services/RoleBasedMessagingService';
+import {
+  RoleBasedNotificationService,
+  UserNotificationContext,
+  RoleNotification,
+} from '../lib/services/RoleBasedNotificationService';
 import { supabase } from '../lib/supabaseClient';
 
 async function runTests() {
@@ -1092,6 +1097,362 @@ async function runTests() {
     assert.strictEqual(capturedEvent.patientId, 'pat-roshan-1');
 
     RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  console.log('\n--- 8. Role-Based Notification System & Security Tests ---');
+
+  await test('8.1 PATIENT: Receives only authorized personal notifications (appointment, referral, report, follow-up)', () => {
+    const patientContext: UserNotificationContext = { userId: 'pat-roshan-1', role: 'PATIENT', patientId: 'pat-roshan-1' };
+
+    // Valid own appointment notification
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'pat-roshan-1',
+        recipientRole: 'PATIENT',
+        type: 'APPOINTMENT_CONFIRMED',
+        patientId: 'pat-roshan-1',
+        title: 'Appointment Confirmed',
+        message: 'Your PHC appointment has been confirmed.',
+        recipientContext: patientContext,
+      });
+    });
+
+    // Valid own referral notification
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'pat-roshan-1',
+        recipientRole: 'PATIENT',
+        type: 'REFERRAL_ACCEPTED',
+        patientId: 'pat-roshan-1',
+        title: 'Referral Accepted',
+        message: 'Your referral has been accepted by District Hospital.',
+        recipientContext: patientContext,
+      });
+    });
+
+    // Valid own diagnostic report notification
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'pat-roshan-1',
+        recipientRole: 'PATIENT',
+        type: 'DIAGNOSTIC_REPORT_AVAILABLE',
+        patientId: 'pat-roshan-1',
+        title: 'Report Available',
+        message: 'Your diagnostic report is now available.',
+        recipientContext: patientContext,
+      });
+    });
+  });
+
+  await test('8.2 PATIENT: Unauthorized access to another patient notification is rejected', () => {
+    const patientContext: UserNotificationContext = { userId: 'pat-roshan-1', role: 'PATIENT', patientId: 'pat-roshan-1' };
+
+    assert.throws(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'pat-other-user',
+        recipientRole: 'PATIENT',
+        type: 'APPOINTMENT_CONFIRMED',
+        patientId: 'pat-other-user',
+        title: 'Appointment Confirmed',
+        message: 'Your PHC appointment has been confirmed.',
+        recipientContext: patientContext,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('8.3 ASHA: Receives notifications only for assigned patients & tasks; unassigned patient rejected', () => {
+    const ashaContext: UserNotificationContext = {
+      userId: 'asha-sunita',
+      role: 'ASHA',
+      assignedPatientIds: ['pat-roshan-1', 'pat-anita-2'],
+    };
+
+    // Valid assigned patient request
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'asha-sunita',
+        recipientRole: 'ASHA',
+        type: 'NEW_PATIENT_REQUEST',
+        patientId: 'pat-roshan-1',
+        title: 'New Patient Request',
+        message: 'New patient assistance request.',
+        recipientContext: ashaContext,
+      });
+    });
+
+    // Valid follow-up task assigned
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'asha-sunita',
+        recipientRole: 'ASHA',
+        type: 'FOLLOW_UP_ASSIGNED',
+        patientId: 'pat-anita-2',
+        title: 'Follow-up Assigned',
+        message: 'New follow-up task assigned by PHC.',
+        recipientContext: ashaContext,
+      });
+    });
+
+    // Invalid unassigned patient notification
+    assert.throws(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientUserId: 'asha-sunita',
+        recipientRole: 'ASHA',
+        type: 'NEW_PATIENT_REQUEST',
+        patientId: 'pat-stranger-999',
+        title: 'New Patient Request',
+        message: 'New patient assistance request.',
+        recipientContext: ashaContext,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('8.4 PHC: Receives notifications for authorized facility cases; other PHC notifications rejected', () => {
+    const phcContext: UserNotificationContext = {
+      userId: 'dr-kulkarni',
+      role: 'PHC',
+      facilityId: 'fac-phc-karjat',
+    };
+
+    // Valid appointment request for this PHC
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientRole: 'PHC',
+        recipientFacilityId: 'fac-phc-karjat',
+        type: 'NEW_APPOINTMENT_REQUEST',
+        patientId: 'pat-roshan-1',
+        title: 'New Appointment Request',
+        message: 'Patient requested an appointment.',
+        recipientContext: phcContext,
+      });
+    });
+
+    // Valid district hospital referral update
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientRole: 'PHC',
+        recipientFacilityId: 'fac-phc-karjat',
+        type: 'DISTRICT_HOSPITAL_UPDATE',
+        patientId: 'pat-roshan-1',
+        title: 'Hospital Update',
+        message: 'Referral status updated by District Hospital.',
+        recipientContext: phcContext,
+      });
+    });
+
+    // Invalid: Notification targeted at a different PHC facility
+    assert.throws(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientRole: 'PHC',
+        recipientFacilityId: 'fac-phc-alibag', // Different PHC
+        type: 'NEW_APPOINTMENT_REQUEST',
+        patientId: 'pat-roshan-1',
+        title: 'New Appointment Request',
+        message: 'Patient requested an appointment.',
+        recipientContext: phcContext,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('8.5 DISTRICT_HOSPITAL: Receives notifications only for assigned referrals; other hospital rejected', () => {
+    const dhContext: UserNotificationContext = {
+      userId: 'dr-patil-dh',
+      role: 'DISTRICT_HOSPITAL',
+      facilityId: 'fac-dh-raigad',
+    };
+
+    // Valid new referral for Raigad DH
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientRole: 'DISTRICT_HOSPITAL',
+        recipientFacilityId: 'fac-dh-raigad',
+        type: 'NEW_REFERRAL',
+        patientId: 'pat-roshan-1',
+        title: 'New Referral',
+        message: 'New referral received from PHC.',
+        recipientContext: dhContext,
+      });
+    });
+
+    // Valid urgent referral
+    assert.doesNotThrow(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientRole: 'DISTRICT_HOSPITAL',
+        recipientFacilityId: 'fac-dh-raigad',
+        type: 'URGENT_REFERRAL',
+        patientId: 'pat-roshan-1',
+        title: 'Urgent Referral',
+        message: 'Urgent referral requires attention.',
+        recipientContext: dhContext,
+      });
+    });
+
+    // Invalid: Notification targeted at Thane DH received by Raigad DH
+    assert.throws(() => {
+      RoleBasedNotificationService.validateNotificationAuthorization({
+        recipientRole: 'DISTRICT_HOSPITAL',
+        recipientFacilityId: 'fac-dh-thane',
+        type: 'NEW_REFERRAL',
+        patientId: 'pat-roshan-1',
+        title: 'New Referral',
+        message: 'New referral received from PHC.',
+        recipientContext: dhContext,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('8.6 Notification Priority: Correctly calculates priority (LOW, NORMAL, HIGH, URGENT)', async () => {
+    (supabase as any).from = (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        }),
+      }),
+      insert: (data: any) => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: { id: 'notif-prio-1', ...data }, error: null }),
+        }),
+      }),
+    });
+
+    // Urgent referral -> URGENT priority
+    const urgentNotif = await RoleBasedNotificationService.createNotification({
+      recipientRole: 'DISTRICT_HOSPITAL',
+      recipientFacilityId: 'fac-dh-raigad',
+      type: 'URGENT_REFERRAL',
+      title: 'Urgent Referral',
+      message: 'Urgent referral requires attention.',
+      actorContext: { userId: 'dr-kulkarni', role: 'PHC', facilityId: 'fac-phc-karjat' },
+    });
+    assert.strictEqual(urgentNotif.notification.priority, 'URGENT');
+
+    // New referral -> HIGH priority
+    const highNotif = await RoleBasedNotificationService.createNotification({
+      recipientRole: 'DISTRICT_HOSPITAL',
+      recipientFacilityId: 'fac-dh-raigad',
+      type: 'NEW_REFERRAL',
+      title: 'New Referral',
+      message: 'New referral received from PHC.',
+      actorContext: { userId: 'dr-kulkarni', role: 'PHC', facilityId: 'fac-phc-karjat' },
+    });
+    assert.strictEqual(highNotif.notification.priority, 'HIGH');
+
+    // Routine appointment reminder -> NORMAL priority
+    const normalNotif = await RoleBasedNotificationService.createNotification({
+      recipientUserId: 'pat-roshan-1',
+      recipientRole: 'PATIENT',
+      patientId: 'pat-roshan-1',
+      type: 'APPOINTMENT_REMINDER',
+      title: 'Appointment Reminder',
+      message: 'You have an upcoming appointment scheduled.',
+      actorContext: { userId: 'system', role: 'PHC', facilityId: 'fac-phc-karjat' },
+    });
+    assert.strictEqual(normalNotif.notification.priority, 'NORMAL');
+  });
+
+  await test('8.7 Patient Privacy: Sanitizes title and message against clinical leakage', async () => {
+    (supabase as any).from = (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        }),
+      }),
+      insert: (data: any) => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: { id: 'notif-priv-1', ...data }, error: null }),
+        }),
+      }),
+    });
+
+    const notif = await RoleBasedNotificationService.createNotification({
+      recipientUserId: 'pat-roshan-1',
+      recipientRole: 'PATIENT',
+      patientId: 'pat-roshan-1',
+      type: 'PRESCRIPTION_CREATED',
+      title: 'Diagnosed with Acute Myocardial Infarction',
+      message: 'Prescription for Atorvastatin 40mg and Metoprolol 50mg created.',
+      actorContext: { userId: 'dr-kulkarni', role: 'PHC' },
+    });
+
+    assert.ok(!notif.notification.title.includes('Myocardial Infarction'));
+    assert.ok(!notif.notification.message.includes('Atorvastatin'));
+    assert.strictEqual(notif.notification.message, 'Your consultation record has been updated.');
+  });
+
+  await test('8.8 Idempotency: Duplicate notifications with same key are prevented', async () => {
+    const existingNotif: RoleNotification = {
+      id: 'existing-notif-100',
+      recipient_user_id: 'pat-roshan-1',
+      recipient_role: 'PATIENT',
+      type: 'APPOINTMENT_CONFIRMED',
+      title: 'Appointment Confirmed',
+      message: 'Your appointment has been confirmed.',
+      patient_id: 'pat-roshan-1',
+      related_entity_id: 'apt-101',
+      related_entity_type: 'APPOINTMENT',
+      priority: 'NORMAL',
+      is_read: false,
+      idempotency_key: 'idemp-apt-101-confirmed',
+      created_at: new Date().toISOString(),
+    };
+
+    (supabase as any).from = (table: string) => {
+      if (table === 'role_notifications') {
+        return {
+          select: () => ({
+            eq: (col: string, val: string) => ({
+              maybeSingle: () => Promise.resolve({ data: existingNotif, error: null }),
+            }),
+          }),
+        };
+      }
+      return {};
+    };
+
+    const duplicateResult = await RoleBasedNotificationService.createNotification({
+      recipientUserId: 'pat-roshan-1',
+      recipientRole: 'PATIENT',
+      patientId: 'pat-roshan-1',
+      type: 'APPOINTMENT_CONFIRMED',
+      title: 'Appointment Confirmed',
+      message: 'Your appointment has been confirmed.',
+      relatedEntityId: 'apt-101',
+      relatedEntityType: 'APPOINTMENT',
+      idempotencyKey: 'idemp-apt-101-confirmed',
+      actorContext: { userId: 'dr-kulkarni', role: 'PHC' },
+    });
+
+    assert.strictEqual(duplicateResult.notification.id, 'existing-notif-100');
+    assert.strictEqual(duplicateResult.isDuplicate, true);
+  });
+
+  await test('8.9 Re-authorization On Click: verifyEntityAccess blocks unauthorized entities', async () => {
+    const patientContext: UserNotificationContext = { userId: 'pat-roshan-1', role: 'PATIENT', patientId: 'pat-roshan-1' };
+    const strangerContext: UserNotificationContext = { userId: 'pat-stranger-99', role: 'PATIENT', patientId: 'pat-stranger-99' };
+
+    (supabase as any).from = (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: { id: 'pat-roshan-1', patient_id: 'pat-roshan-1' }, error: null }),
+        }),
+      }),
+    });
+
+    // Same patient entity access allowed
+    const canAccessOwn = await RoleBasedNotificationService.verifyEntityAccess(
+      'pat-roshan-1',
+      'appointment',
+      patientContext
+    );
+    assert.strictEqual(canAccessOwn.authorized, true);
+
+    // Other patient entity access blocked
+    const canAccessOther = await RoleBasedNotificationService.verifyEntityAccess(
+      'pat-roshan-1',
+      'appointment',
+      strangerContext
+    );
+    assert.strictEqual(canAccessOther.authorized, false);
   });
 
   console.log(`\n======================================================`);

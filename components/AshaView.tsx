@@ -7,6 +7,8 @@ import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicat
 import { PatientAshaCommunicationService, AssistanceRequestStatus } from '../lib/services/PatientAshaCommunicationService';
 import { HealthcareJourneyLoopService } from '../lib/services/HealthcareJourneyLoopService';
 import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
+import { useRoleBasedNotifications } from '../lib/hooks/useRoleBasedNotifications';
+import { NotificationCenterModal } from './NotificationCenterModal';
 
 interface AshaViewProps {
   isOffline: boolean;
@@ -350,6 +352,7 @@ export const AshaView: React.FC<AshaViewProps> = ({
   user,
   onSignOut,
 }) => {
+  const ashaUserId = user?.id || user?.user_id || 'asha-sunita';
   const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('en');
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -462,7 +465,22 @@ export const AshaView: React.FC<AshaViewProps> = ({
   ]);
 
   // Role-Based Realtime Communication Hook (Authorized for ASHA)
-  const ashaUserId = user?.id || 'u-asha-101';
+  // Role-Based Notifications Hook for ASHA
+  const {
+    notifications: roleNotifications,
+    unreadCount: notifUnreadCount,
+    markAsRead: markNotifAsRead,
+    markAllAsRead: markAllNotifsAsRead,
+    verifyAndOpenEntity,
+  } = useRoleBasedNotifications({
+    userId: ashaUserId,
+    role: 'ASHA',
+    assignedPatientIds: ['p-patient-101', 'p-101', 'p-102', 'p-103', 'p-104'],
+  });
+
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+
+  // Role-Based Realtime Communication Hook (Authorized for ASHA)
   useRoleRealtimeCommunication({
     role: 'ASHA',
     userId: ashaUserId,
@@ -653,7 +671,8 @@ export const AshaView: React.FC<AshaViewProps> = ({
     let channel: any = null;
     try {
       const supabase = createClient();
-      channel = supabase.channel('arogya_realtime');
+      const instanceId = Math.random().toString(36).substring(2, 9);
+      channel = supabase.channel(`arogya_realtime_${instanceId}`);
       channel
         .on('broadcast', { event: 'new-appointment' }, ({ payload }: any) => {
           if (payload) notifyNewAppointment(payload);
@@ -864,13 +883,16 @@ export const AshaView: React.FC<AshaViewProps> = ({
           {/* Notification Bell */}
           <button
             type="button"
-            onClick={() => showToast(language === 'mr' ? '३ सक्रिय आरोग्य सूचना' : '3 active health alerts')}
+            onClick={() => setIsNotificationCenterOpen(true)}
             className="relative p-2 text-slate-700 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Notifications"
           >
             <span className="material-symbols-outlined text-[24px]">notifications</span>
-            <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
-              3
-            </span>
+            {notifUnreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white animate-pulse">
+                {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+              </span>
+            )}
           </button>
 
           {/* Language Selector Dropdown */}
@@ -2765,6 +2787,28 @@ export const AshaView: React.FC<AshaViewProps> = ({
           <span>{lang.profile}</span>
         </button>
       </div>
+
+      {/* Notification Center Modal */}
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        notifications={roleNotifications}
+        unreadCount={notifUnreadCount}
+        onMarkAsRead={markNotifAsRead}
+        onMarkAllAsRead={markAllNotifsAsRead}
+        language={language}
+        onOpenEntity={async (notif) => {
+          const check = await verifyAndOpenEntity(notif);
+          if (!check.allowed) {
+            showToast(check.message || 'You no longer have access to this information.');
+            return;
+          }
+          if (notif.related_entity_type === 'appointment' || notif.related_entity_type === 'follow_up') {
+            setIsNotificationCenterOpen(false);
+            setActiveTab('patients');
+          }
+        }}
+      />
     </div>
   );
 };

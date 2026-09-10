@@ -7,6 +7,8 @@ import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicat
 import { PatientAshaCommunicationService } from '../lib/services/PatientAshaCommunicationService';
 import { PatientPhcCommunicationService } from '../lib/services/PatientPhcCommunicationService';
 import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
+import { useRoleBasedNotifications } from '../lib/hooks/useRoleBasedNotifications';
+import { NotificationCenterModal } from './NotificationCenterModal';
 
 interface PatientViewProps {
   user?: any;
@@ -423,7 +425,17 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     },
   });
 
+  // Role-Based Notifications Hook
+  const {
+    notifications: roleNotifications,
+    unreadCount: notifUnreadCount,
+    markAsRead: markNotifAsRead,
+    markAllAsRead: markAllNotifsAsRead,
+    verifyAndOpenEntity,
+  } = useRoleBasedNotifications({ userId: patientUserId, role: 'PATIENT' });
+
   // Modals state
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [isAshaChatModalOpen, setIsAshaChatModalOpen] = useState(false);
   const [isBookAppointmentOpen, setIsBookAppointmentOpen] = useState(false);
@@ -768,13 +780,16 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             {/* Notification Bell */}
             <button
               type="button"
-              onClick={() => showToast(lang.notificationsCount)}
+              onClick={() => setIsNotificationCenterOpen(true)}
               className="relative p-2 text-slate-700 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Notifications"
             >
               <span className="material-symbols-outlined text-[24px]">notifications</span>
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
-                3
-              </span>
+              {notifUnreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white animate-pulse">
+                  {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                </span>
+              )}
             </button>
 
             {/* Language Selector Dropdown */}
@@ -1870,6 +1885,31 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
           <span>{lang.profile}</span>
         </button>
       </div>
+
+      {/* Notification Center Modal */}
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        notifications={roleNotifications}
+        unreadCount={notifUnreadCount}
+        onMarkAsRead={markNotifAsRead}
+        onMarkAllAsRead={markAllNotifsAsRead}
+        language={language}
+        onOpenEntity={async (notif) => {
+          const check = await verifyAndOpenEntity(notif);
+          if (!check.allowed) {
+            showToast(check.message || 'You no longer have access to this information.');
+            return;
+          }
+          if (notif.related_entity_type === 'appointment') {
+            setIsNotificationCenterOpen(false);
+            setActiveTab('appointments');
+          } else if (notif.related_entity_type === 'diagnostic') {
+            setIsNotificationCenterOpen(false);
+            setActiveTab('reports');
+          }
+        }}
+      />
     </div>
   );
 };

@@ -11,6 +11,8 @@ import {
   HospitalReferralStatus,
 } from '../lib/services/PhcDistrictHospitalCommunicationService';
 import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
+import { useRoleBasedNotifications } from '../lib/hooks/useRoleBasedNotifications';
+import { NotificationCenterModal } from './NotificationCenterModal';
 
 export interface DoctorReferral {
   id: string;
@@ -186,6 +188,21 @@ export const DoctorView: React.FC = () => {
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('32');
   const [patientSymptom, setPatientSymptom] = useState('Fever, Cough');
+
+  // Role-Based Notifications Hook for Doctor/PHC
+  const {
+    notifications: roleNotifications,
+    unreadCount: notifUnreadCount,
+    markAsRead: markNotifAsRead,
+    markAllAsRead: markAllNotifsAsRead,
+    verifyAndOpenEntity,
+  } = useRoleBasedNotifications({
+    userId: 'u-doc-101',
+    role: 'PHC',
+    facilityId: 'fac-phc-karjat',
+  });
+
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
 
   // Role-Based Realtime Communication Hook (Authorized for PHC / District Hospital)
   useRoleRealtimeCommunication({
@@ -642,13 +659,16 @@ export const DoctorView: React.FC = () => {
             {/* Notification Bell */}
             <button
               type="button"
-              onClick={() => setIsEmergencyModalOpen(true)}
+              onClick={() => setIsNotificationCenterOpen(true)}
               className="relative p-2 text-slate-700 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Notifications"
             >
               <span className="material-symbols-outlined text-[24px]">notifications</span>
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white">
-                3
-              </span>
+              {notifUnreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white animate-pulse">
+                  {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                </span>
+              )}
             </button>
 
             {/* Doctor Avatar */}
@@ -1986,6 +2006,31 @@ export const DoctorView: React.FC = () => {
           <span>Profile</span>
         </button>
       </div>
+
+      {/* Notification Center Modal */}
+      <NotificationCenterModal
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        notifications={roleNotifications}
+        unreadCount={notifUnreadCount}
+        onMarkAsRead={markNotifAsRead}
+        onMarkAllAsRead={markAllNotifsAsRead}
+        language="en"
+        onOpenEntity={async (notif) => {
+          const check = await verifyAndOpenEntity(notif);
+          if (!check.allowed) {
+            showToast(check.message || 'You no longer have access to this information.');
+            return;
+          }
+          if (notif.related_entity_type === 'appointment') {
+            setIsNotificationCenterOpen(false);
+            setIsOpdQueueOpen(true);
+          } else if (notif.related_entity_type === 'referral') {
+            setIsNotificationCenterOpen(false);
+            setIsReferralOpen(true);
+          }
+        }}
+      />
     </div>
   );
 };
