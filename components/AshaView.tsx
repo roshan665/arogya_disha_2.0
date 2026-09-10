@@ -6,6 +6,7 @@ import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommun
 import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
 import { PatientAshaCommunicationService, AssistanceRequestStatus } from '../lib/services/PatientAshaCommunicationService';
 import { HealthcareJourneyLoopService } from '../lib/services/HealthcareJourneyLoopService';
+import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
 
 interface AshaViewProps {
   isOffline: boolean;
@@ -501,6 +502,14 @@ export const AshaView: React.FC<AshaViewProps> = ({
             : language === 'hi'
             ? '📋 प्राथमिक स्वास्थ्य केंद्र से नया सामुदायिक फॉलो-अप कार्य सौंपा गया!'
             : '📋 New Community Follow-up Task Assigned from PHC!';
+        showToast(alertMsg);
+      } else if (event.type === 'NEW_MESSAGE') {
+        const alertMsg =
+          language === 'mr'
+            ? '💬 अधिकृत रुग्णाकडून नवीन संदेश प्राप्त!'
+            : language === 'hi'
+            ? '💬 अधिकृत मरीज़ से नया संदेश प्राप्त!'
+            : '💬 New message from authorized patient!';
         showToast(alertMsg);
       } else {
         const alertMsg =

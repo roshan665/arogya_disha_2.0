@@ -15,6 +15,11 @@ import {
   HospitalReferralStatus,
 } from '../lib/services/PhcDistrictHospitalCommunicationService';
 import { HealthcareJourneyLoopService } from '../lib/services/HealthcareJourneyLoopService';
+import {
+  RoleBasedMessagingService,
+  UserMessagingContext,
+  ConversationRecord,
+} from '../lib/services/RoleBasedMessagingService';
 import { supabase } from '../lib/supabaseClient';
 
 async function runTests() {
@@ -862,6 +867,229 @@ async function runTests() {
     // Verify privacy: zero internal clinical notes leaked
     assert.strictEqual((step7.patientCompletionEvent as any).internalAshaNotes, undefined);
     assert.strictEqual((step7.phcCompletionEvent as any).internalAshaNotes, undefined);
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  console.log('\n--- 7. Role-Based Restricted Messaging & Anti-Chat Security Enforcement ---');
+
+  await test('7.1 PATIENT <-> ASSIGNED ASHA channel allows authorized messaging only', async () => {
+    const patientContext: UserMessagingContext = { userId: 'pat-roshan-1', role: 'PATIENT' };
+    const ashaContext: UserMessagingContext = { userId: 'asha-sunita-1', role: 'ASHA', assignedPatientIds: ['pat-roshan-1'] };
+
+    // Valid: Patient initiates
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PATIENT_ASHA',
+        patientId: 'pat-roshan-1',
+        ashaId: 'asha-sunita-1',
+        initiatorContext: patientContext,
+      });
+    });
+
+    // Valid: Assigned ASHA initiates
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PATIENT_ASHA',
+        patientId: 'pat-roshan-1',
+        ashaId: 'asha-sunita-1',
+        initiatorContext: ashaContext,
+      });
+    });
+  });
+
+  await test('7.2 PATIENT <-> PHC channel allows authorized PHC facility messaging only', async () => {
+    const patientContext: UserMessagingContext = { userId: 'pat-roshan-1', role: 'PATIENT' };
+    const phcContext: UserMessagingContext = { userId: 'doc-amit-1', role: 'PHC', facilityId: 'fac-phc-karjat' };
+
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PATIENT_PHC',
+        patientId: 'pat-roshan-1',
+        phcFacilityId: 'fac-phc-karjat',
+        initiatorContext: patientContext,
+      });
+    });
+
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PATIENT_PHC',
+        patientId: 'pat-roshan-1',
+        phcFacilityId: 'fac-phc-karjat',
+        initiatorContext: phcContext,
+      });
+    });
+  });
+
+  await test('7.3 ASHA <-> PHC channel allows coordination strictly for authorized patient', async () => {
+    const ashaContext: UserMessagingContext = { userId: 'asha-sunita-1', role: 'ASHA', assignedPatientIds: ['pat-roshan-1'] };
+
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'ASHA_PHC',
+        patientId: 'pat-roshan-1',
+        ashaId: 'asha-sunita-1',
+        phcFacilityId: 'fac-phc-karjat',
+        initiatorContext: ashaContext,
+      });
+    });
+  });
+
+  await test('7.4 PHC <-> DISTRICT_HOSPITAL channel allows communication strictly for active referral', async () => {
+    const phcContext: UserMessagingContext = { userId: 'doc-amit-1', role: 'PHC', facilityId: 'fac-phc-karjat' };
+
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PHC_DISTRICT_HOSPITAL',
+        patientId: 'pat-roshan-1',
+        phcFacilityId: 'fac-phc-karjat',
+        dhFacilityId: 'fac-dh-raigad',
+        referralId: 'ref-dh-999',
+        initiatorContext: phcContext,
+      });
+    });
+  });
+
+  await test('7.5 DISTRICT_HOSPITAL <-> PATIENT channel allows communication strictly for active care episode', async () => {
+    const dhContext: UserMessagingContext = { userId: 'spec-1', role: 'DISTRICT_HOSPITAL', facilityId: 'fac-dh-raigad' };
+
+    assert.doesNotThrow(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'DISTRICT_HOSPITAL_PATIENT',
+        patientId: 'pat-roshan-1',
+        dhFacilityId: 'fac-dh-raigad',
+        referralId: 'ref-dh-999',
+        initiatorContext: dhContext,
+      });
+    });
+  });
+
+  await test('7.6 FORBIDDEN: Patient-to-patient messaging is rejected', () => {
+    const patientA: UserMessagingContext = { userId: 'pat-A', role: 'PATIENT' };
+
+    assert.throws(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PATIENT_ASHA',
+        patientId: 'pat-B', // Impersonation attempt
+        ashaId: 'asha-1',
+        initiatorContext: patientA,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('7.7 FORBIDDEN: ASHA messaging unassigned patient is rejected', () => {
+    const ashaContext: UserMessagingContext = { userId: 'asha-1', role: 'ASHA', assignedPatientIds: ['pat-1'] };
+
+    assert.throws(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PATIENT_ASHA',
+        patientId: 'pat-unassigned-99',
+        ashaId: 'asha-1',
+        initiatorContext: ashaContext,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('7.8 FORBIDDEN: PHC messaging District Hospital without active referral is rejected', () => {
+    const phcContext: UserMessagingContext = { userId: 'doc-1', role: 'PHC', facilityId: 'fac-phc-1' };
+
+    assert.throws(() => {
+      RoleBasedMessagingService.validateChannelAuthorization({
+        channelType: 'PHC_DISTRICT_HOSPITAL',
+        patientId: 'pat-1',
+        phcFacilityId: 'fac-phc-1',
+        dhFacilityId: 'fac-dh-1',
+        referralId: undefined, // Missing referral
+        initiatorContext: phcContext,
+      });
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('7.9 FORBIDDEN: User knowing conversationId cannot access messages without authorization', async () => {
+    const unauthorizedUser: UserMessagingContext = { userId: 'pat-intruder', role: 'PATIENT' };
+
+    (supabase as any).from = (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'conv-private-100',
+                channel_type: 'PATIENT_ASHA',
+                patient_id: 'pat-victim-200',
+                asha_id: 'asha-sunita',
+              },
+              error: null,
+            }),
+        }),
+      }),
+    });
+
+    await assert.rejects(async () => {
+      await RoleBasedMessagingService.getMessages('conv-private-100', unauthorizedUser);
+    }, /SECURITY_ERROR/);
+  });
+
+  await test('7.10 Targeted Realtime Delivery: Message broadcast goes only to authorized recipient and never globally', async () => {
+    const conv: ConversationRecord = {
+      id: 'conv-test-100',
+      channel_type: 'PATIENT_ASHA',
+      patient_id: 'pat-roshan-1',
+      asha_id: 'asha-sunita-1',
+      created_at: new Date().toISOString(),
+    };
+
+    (supabase as any).from = (table: string) => {
+      if (table === 'conversations') {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: () => Promise.resolve({ data: conv, error: null }),
+            }),
+          }),
+          update: () => ({
+            eq: () => Promise.resolve({ data: {}, error: null }),
+          }),
+        };
+      }
+      if (table === 'messages') {
+        return {
+          insert: (data: any) => ({
+            select: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: 'msg-rec-1',
+                    ...data,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        };
+      }
+      return {};
+    };
+
+    let capturedEvent: RealtimeHealthcareEvent | null = null;
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      capturedEvent = { id: 'evt-msg-1', ...p, timestamp: new Date().toISOString() };
+      return capturedEvent;
+    };
+
+    const res = await RoleBasedMessagingService.sendMessage({
+      conversationId: 'conv-test-100',
+      senderContext: { userId: 'pat-roshan-1', role: 'PATIENT' },
+      message: 'Hello ASHA didi, I need assistance with my medicine dosage.',
+    });
+
+    assert.strictEqual(res.message.id, 'msg-rec-1');
+    assert.ok(capturedEvent);
+    assert.strictEqual(capturedEvent.type, 'NEW_MESSAGE');
+    assert.strictEqual(capturedEvent.recipientType, 'ASHA');
+    assert.strictEqual(capturedEvent.recipientUserId, 'asha-sunita-1');
+    assert.strictEqual(capturedEvent.patientId, 'pat-roshan-1');
 
     RealtimeCommunicationService.publishEvent = origPublish;
   });

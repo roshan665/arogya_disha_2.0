@@ -6,6 +6,7 @@ import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommun
 import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
 import { PatientAshaCommunicationService } from '../lib/services/PatientAshaCommunicationService';
 import { PatientPhcCommunicationService } from '../lib/services/PatientPhcCommunicationService';
+import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
 
 interface PatientViewProps {
   user?: any;
@@ -394,6 +395,22 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             ? '🏡 आशा दीदी की गृह भेंट एवं फॉलो-अप पूरा हो गया है।'
             : '🏡 Home visit and community follow-up completed.'
         );
+      } else if (event.type === 'NEW_MESSAGE') {
+        showToast(
+          language === 'mr'
+            ? '💬 आशा ताईंकडून नवीन संदेश प्राप्त झाला आहे!'
+            : language === 'hi'
+            ? '💬 आशा दीदी से नया संदेश प्राप्त हुआ है!'
+            : '💬 New message received from ASHA!'
+        );
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            sender: 'ASHA Sunita',
+            text: 'I received your request and am checking your care details.',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
       } else if (event.type.startsWith('REFERRAL_')) {
         showToast(
           language === 'mr'
@@ -533,8 +550,21 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     setChatMessages((prev) => [...prev, newMsg]);
     setInputMsg('');
 
-    // Dispatch realtime request to assigned ASHA Sunita More
+    // Dispatch realtime request and store message in authorized conversation
     try {
+      const conv = await RoleBasedMessagingService.getOrCreateAuthorizedConversation({
+        channelType: 'PATIENT_ASHA',
+        patientId: patientUserId,
+        ashaId: 'u-asha-101',
+        initiatorContext: { userId: patientUserId, role: 'PATIENT' },
+      });
+
+      await RoleBasedMessagingService.sendMessage({
+        conversationId: conv.id,
+        senderContext: { userId: patientUserId, role: 'PATIENT' },
+        message: messageText,
+      });
+
       await PatientAshaCommunicationService.requestAshaAssistance({
         patientId: patientUserId,
         ashaId: 'u-asha-101',

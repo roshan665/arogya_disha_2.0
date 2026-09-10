@@ -10,6 +10,7 @@ import {
   PhcDistrictHospitalCommunicationService,
   HospitalReferralStatus,
 } from '../lib/services/PhcDistrictHospitalCommunicationService';
+import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
 
 export interface DoctorReferral {
   id: string;
@@ -261,6 +262,8 @@ export const DoctorView: React.FC = () => {
         showToast(`🔬 Realtime [LAB]: New Diagnostic Report available for Doctor Review (ID: ${event.relatedEntityId})`);
       } else if (event.type === 'PHC_FOLLOWUP_REQUEST') {
         showToast(`🚨 Realtime [ASHA]: Urgent Follow-Up Request Escalated for Patient ${event.patientId}!`);
+      } else if (event.type === 'NEW_MESSAGE') {
+        showToast(`💬 Realtime [MESSAGING]: New clinical message received (Patient ID: ${event.patientId || 'N/A'})`);
       } else {
         showToast(`⚡ Realtime Event [${event.actorRole}]: ${event.type}`);
       }
