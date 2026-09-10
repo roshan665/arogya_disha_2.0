@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../lib/supabase/client';
 import { saveVisitOffline } from '../lib/db';
+import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
+import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
 
 interface PatientViewProps {
   user?: any;
@@ -277,6 +279,25 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     }
   }, []);
 
+  // Role-Based Realtime Communication Hook (Authorized for PATIENT)
+  const patientUserId = user?.id || 'p-patient-101';
+  useRoleRealtimeCommunication({
+    role: 'PATIENT',
+    userId: patientUserId,
+    onEventReceived: (event) => {
+      console.log('PATIENT received authorized realtime event:', event.type);
+      if (event.type.startsWith('APPOINTMENT_') || event.type.startsWith('REFERRAL_')) {
+        showToast(
+          language === 'mr'
+            ? `आरोग्य अपडेट प्राप्त: ${event.type}`
+            : language === 'hi'
+            ? `स्वास्थ्य अपडेट प्राप्त: ${event.type}`
+            : `Health Update Received: ${event.type}`
+        );
+      }
+    },
+  });
+
   // Modals state
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [isAshaChatModalOpen, setIsAshaChatModalOpen] = useState(false);
@@ -486,27 +507,24 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
       console.warn('BroadcastChannel broadcast error:', err);
     }
 
-    // 3. Supabase Realtime Channel
+    // 3. Database-Enforced Role Realtime Event Dispatch (Minimal, Zero Medical Data Leakage)
     try {
-      const supabase = createClient();
-      const channel = supabase.channel('arogya_realtime');
-      channel.subscribe((status, err) => {
-        if (err) {
-          console.warn('Realtime channel error suppressed:', err);
-          return;
-        }
-        if (status === 'SUBSCRIBED') {
-          channel
-            .send({
-              type: 'broadcast',
-              event: 'new-appointment',
-              payload: payload,
-            })
-            .catch((e) => console.warn('Supabase broadcast send:', e));
-        }
-      });
+      RealtimeCommunicationService.fanoutEvent(
+        {
+          type: 'APPOINTMENT_BOOKED',
+          actorId: user?.id || 'p-patient-101',
+          actorRole: 'PATIENT',
+          patientId: user?.id || 'p-patient-101',
+          relatedEntityId: newAppointment.id,
+          relatedEntityType: 'appointment',
+        },
+        [
+          { recipientType: 'ASHA' },
+          { recipientType: 'PHC' }
+        ]
+      ).catch((e) => console.warn('Realtime event publish notice:', e));
     } catch (err) {
-      console.warn('Supabase realtime error:', err);
+      console.warn('Realtime communication publish error:', err);
     }
 
     setIsBookAppointmentOpen(false);

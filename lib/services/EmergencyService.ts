@@ -33,8 +33,29 @@ export class EmergencyService {
       entityType: 'patient'
     });
 
-    // 3. (Mock) Auto-slot into priority queue
-    // In reality, this would call AppointmentRepository to secure the first available slot.
+    // 3. Multi-role Minimal Realtime Event Fanout (PHC, District Hospital, ASHA)
+    try {
+      const { RealtimeCommunicationService } = await import('./RealtimeCommunicationService');
+      await RealtimeCommunicationService.fanoutEvent(
+        {
+          type: 'EMERGENCY_TRIGGERED',
+          actorId: actorId,
+          actorRole: 'PATIENT',
+          patientId: patientId,
+          relatedEntityId: patientId,
+          relatedEntityType: 'emergency',
+        },
+        [
+          { recipientType: 'DISTRICT_HOSPITAL', recipientFacilityId: targetFacilityId },
+          { recipientType: 'PHC', recipientFacilityId: targetFacilityId },
+          { recipientType: 'ASHA' }
+        ]
+      );
+    } catch (e) {
+      console.warn('Emergency realtime event fanout suppressed:', e);
+    }
+
+    // 4. (Mock) Auto-slot into priority queue
     return { status: 'EMERGENCY_ROUTED', priority_score: 999 };
   }
 }

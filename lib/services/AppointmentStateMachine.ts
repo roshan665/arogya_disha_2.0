@@ -24,8 +24,6 @@ export class AppointmentStateMachine {
 
     // Domain Event -> Realtime Notification
     if (newState === 'CHECKED_IN') {
-      // Notify the Doctor (simplified: Assuming we know the doctor's ID, or broadcast to facility)
-      // For this implementation, we assume `additionalFields.doctor_id` is passed, or we'd fetch it.
       if (additionalFields.doctor_id) {
         await NotificationService.publishEvent({
           userId: additionalFields.doctor_id,
@@ -36,6 +34,28 @@ export class AppointmentStateMachine {
           entityType: 'appointment'
         });
       }
+    }
+
+    // Role-Based Realtime Event Fanout (Minimal, Secure)
+    try {
+      const { RealtimeCommunicationService } = await import('./RealtimeCommunicationService');
+      await RealtimeCommunicationService.fanoutEvent(
+        {
+          type: `APPOINTMENT_${newState}`,
+          actorId: actorId,
+          actorRole: additionalFields.actorRole || 'PHC',
+          patientId: result?.patient_id || 'p-patient-101',
+          relatedEntityId: appointmentId,
+          relatedEntityType: 'appointment',
+        },
+        [
+          { recipientType: 'PATIENT', recipientUserId: result?.patient_id },
+          { recipientType: 'ASHA' },
+          { recipientType: 'PHC', recipientFacilityId: additionalFields.facility_id }
+        ]
+      );
+    } catch (e) {
+      console.warn('Appointment realtime event fanout suppressed:', e);
     }
 
     return result;

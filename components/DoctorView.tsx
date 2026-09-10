@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '../lib/supabase/client';
 import { useRealtimeReferrals } from '../lib/hooks/useRealtimeReferrals';
+import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
 
 export interface DoctorReferral {
   id: string;
@@ -20,6 +21,17 @@ export interface DoctorReferral {
 export const DoctorView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'patients' | 'reports' | 'profile'>('home');
+
+  // Role-Based Realtime Communication Hook (Authorized for PHC / District Hospital)
+  useRoleRealtimeCommunication({
+    role: 'PHC',
+    userId: 'u-doc-101',
+    facilityId: 'fac-phc-karjat',
+    onEventReceived: (event) => {
+      console.log('Doctor/PHC received authorized realtime event:', event.type);
+      showToast(`⚡ Realtime Event [${event.actorRole}]: ${event.type} (Entity: ${event.relatedEntityType})`);
+    },
+  });
 
   // Realtime Referrals
   const { referrals, loading: referralsLoading } = useRealtimeReferrals('mock-facility-id'); // Replace with actual doctor's facility ID

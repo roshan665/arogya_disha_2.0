@@ -43,10 +43,8 @@ export class ReferralStateMachine {
     // 3. Commit Transition
     const result = await ReferralRepository.updateReferralState(referralId, newState.toLowerCase(), actorId, additionalData);
 
-    // 4. Domain Event -> Realtime Notification
-    // If a referral is accepted or rejected, notify the referring user
+    // 4. Domain Event -> Realtime Notification & Role-Based Realtime Event Fanout
     if (newState.toLowerCase() === 'accepted' || newState.toLowerCase() === 'rejected') {
-      // In a real app, we fetch the `referring_user_id` from the result
       const referringUserId = result.referring_user_id; 
       
       if (referringUserId) {
@@ -59,6 +57,29 @@ export class ReferralStateMachine {
           entityType: 'referral'
         });
       }
+    }
+
+    // 5. Structured Minimal Realtime Event Fanout (Respecting Role Scopes & No Medical Data Leakage)
+    try {
+      const { RealtimeCommunicationService } = await import('./RealtimeCommunicationService');
+      await RealtimeCommunicationService.fanoutEvent(
+        {
+          type: `REFERRAL_${newState.toUpperCase()}`,
+          actorId: actorId,
+          actorRole: 'PHC',
+          patientId: result.patient_id || 'p-patient-101',
+          relatedEntityId: referralId,
+          relatedEntityType: 'referral',
+        },
+        [
+          { recipientType: 'DISTRICT_HOSPITAL', recipientFacilityId: result.destination_facility_id },
+          { recipientType: 'PHC', recipientFacilityId: result.source_facility_id, recipientUserId: result.referring_user_id },
+          { recipientType: 'ASHA' },
+          { recipientType: 'PATIENT', recipientUserId: result.patient_id }
+        ]
+      );
+    } catch (e) {
+      console.warn('Realtime event fanout suppressed:', e);
     }
 
     return result;

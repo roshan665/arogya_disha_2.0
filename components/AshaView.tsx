@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAshaDashboard } from '../lib/hooks/useAshaDashboard';
 import { createClient } from '../lib/supabase/client';
 import { saveVisitOffline, RiskScore } from '../lib/db';
+import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
+import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
 
 interface AshaViewProps {
   isOffline: boolean;
@@ -415,6 +417,23 @@ export const AshaView: React.FC<AshaViewProps> = ({
 
   const { schedule, loading } = useAshaDashboard('dummy-asha-id');
   const [patientAppointments, setPatientAppointments] = useState<any[]>([]);
+
+  // Role-Based Realtime Communication Hook (Authorized for ASHA)
+  const ashaUserId = user?.id || 'u-asha-101';
+  useRoleRealtimeCommunication({
+    role: 'ASHA',
+    userId: ashaUserId,
+    onEventReceived: (event) => {
+      console.log('ASHA received authorized realtime event:', event.type);
+      const alertMsg =
+        language === 'mr'
+          ? `🔔 आशा सूचना: ${event.type}`
+          : language === 'hi'
+          ? `🔔 आशा सूचना: ${event.type}`
+          : `🔔 ASHA Alert: ${event.type}`;
+      showToast(alertMsg);
+    },
+  });
 
   // Load patient appointments and registered patients on mount + Listen across tabs & Supabase
   useEffect(() => {
