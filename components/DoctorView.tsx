@@ -6,6 +6,10 @@ import {
   PatientPhcCommunicationService,
   PhcAppointmentStatus,
 } from '../lib/services/PatientPhcCommunicationService';
+import {
+  PhcDistrictHospitalCommunicationService,
+  HospitalReferralStatus,
+} from '../lib/services/PhcDistrictHospitalCommunicationService';
 
 export interface DoctorReferral {
   id: string;
@@ -34,6 +38,28 @@ export interface PhcAppointmentQueueItem {
   date: string;
   timeSlot: string;
   notes?: string;
+}
+
+export interface HospitalReferralItem {
+  id: string;
+  patientId: string;
+  patientName: string;
+  age: number;
+  gender: 'M' | 'F' | 'Other';
+  sourceFacilityId: string;
+  sourceFacilityName: string;
+  destinationFacilityId: string;
+  destinationFacilityName: string;
+  priority: 'RED' | 'YELLOW' | 'GREEN';
+  reason: string;
+  clinicalSummary: string;
+  status: HospitalReferralStatus;
+  rejectionReason?: string;
+  additionalInfoRequested?: string;
+  additionalInfoProvided?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  treatmentSummary?: string;
 }
 
 export const DoctorView: React.FC = () => {
@@ -83,6 +109,51 @@ export const DoctorView: React.FC = () => {
     },
   ]);
 
+  // Hospital Referrals State (PHC <-> District Hospital)
+  const [hospitalReferrals, setHospitalReferrals] = useState<HospitalReferralItem[]>([
+    {
+      id: 'ref-dh-101',
+      patientId: 'p-patient-101',
+      patientName: 'Roshan Sahani',
+      age: 28,
+      gender: 'M',
+      sourceFacilityId: 'fac-phc-karjat',
+      sourceFacilityName: 'Dhamangaon PHC, Karjat',
+      destinationFacilityId: 'fac-dh-raigad',
+      destinationFacilityName: 'Raigad District Hospital (Cardiology Unit)',
+      priority: 'RED',
+      reason: 'Suspected Myocardial Infarction / Unstable Angina',
+      clinicalSummary: 'ECG ST Elevation in Lead II, III, aVF. BP 170/105 mmHg, Troponin T Positive.',
+      status: 'UNDER_REVIEW',
+    },
+    {
+      id: 'ref-dh-102',
+      patientId: 'p-patient-102',
+      patientName: 'Sunita More',
+      age: 26,
+      gender: 'F',
+      sourceFacilityId: 'fac-phc-karjat',
+      sourceFacilityName: 'Dhamangaon PHC, Karjat',
+      destinationFacilityId: 'fac-dh-raigad',
+      destinationFacilityName: 'Raigad District Hospital (Obstetrics)',
+      priority: 'YELLOW',
+      reason: 'High-Risk Pregnancy (Gestational Diabetes + Severe Anemia)',
+      clinicalSummary: 'ANC Trimester 2, Hb 7.8 gm/dL, OGTT 190 mg/dL. Requires specialist OBGYN review.',
+      status: 'ACCEPTED',
+      scheduledDate: '2026-05-20',
+      scheduledTime: '10:00 AM',
+    },
+  ]);
+
+  // Referral Creation & Info Request State
+  const [newRefPatientName, setNewRefPatientName] = useState('Roshan Sahani');
+  const [newRefPriority, setNewRefPriority] = useState<'RED' | 'YELLOW' | 'GREEN'>('RED');
+  const [newRefReason, setNewRefReason] = useState('Severe Chest Pain / Acute Coronary Syndrome');
+  const [newRefClinicalSummary, setNewRefClinicalSummary] = useState('ECG reveals acute ischemic changes. Requires immediate angiography.');
+  const [selectedInfoReqReferral, setSelectedInfoReqReferral] = useState<HospitalReferralItem | null>(null);
+  const [infoReqText, setInfoReqText] = useState('');
+  const [infoProvideText, setInfoProvideText] = useState('');
+
   // Consultation Completion Modal State
   const [selectedConsultPatient, setSelectedConsultPatient] = useState<PhcAppointmentQueueItem | null>(null);
   const [publicSummaryText, setPublicSummaryText] = useState('');
@@ -124,7 +195,6 @@ export const DoctorView: React.FC = () => {
       console.log('Doctor/PHC received authorized realtime event:', event.type);
       if (event.type === 'APPOINTMENT_REQUESTED') {
         showToast(`⚡ Realtime [PATIENT]: New Appointment Requested for patient ${event.patientId}`);
-        // Add or update to queue dynamically
         setOpdAppointments((prev) => {
           if (prev.some((a) => a.id === event.relatedEntityId)) return prev;
           const newApt: PhcAppointmentQueueItem = {
@@ -145,6 +215,47 @@ export const DoctorView: React.FC = () => {
         showToast(`⚡ Realtime [PATIENT]: Patient ${event.patientId} Checked-In at OPD!`);
         setOpdAppointments((prev) =>
           prev.map((a) => (a.id === event.relatedEntityId || a.patientId === event.patientId ? { ...a, status: 'CHECKED_IN' } : a))
+        );
+      } else if (event.type === 'NEW_REFERRAL') {
+        showToast(`⚡ Realtime [PHC]: New Escalation Referral Received for Patient ${event.patientId}!`);
+        setHospitalReferrals((prev) => {
+          if (prev.some((r) => r.id === event.relatedEntityId)) return prev;
+          const newRef: HospitalReferralItem = {
+            id: event.relatedEntityId,
+            patientId: event.patientId,
+            patientName: 'Emergency Patient',
+            age: 45,
+            gender: 'M',
+            sourceFacilityId: 'fac-phc-karjat',
+            sourceFacilityName: 'Dhamangaon PHC',
+            destinationFacilityId: 'fac-dh-raigad',
+            destinationFacilityName: 'Raigad District Hospital',
+            priority: 'RED',
+            reason: 'High-Risk Escalation',
+            clinicalSummary: 'Patient requires tertiary level specialized evaluation.',
+            status: 'CREATED',
+          };
+          return [newRef, ...prev];
+        });
+      } else if (event.type.startsWith('REFERRAL_')) {
+        const status = event.type.replace('REFERRAL_', '') as HospitalReferralStatus;
+        showToast(`🏥 Realtime [DISTRICT HOSPITAL]: Referral Status Updated -> ${status}`);
+        setHospitalReferrals((prev) =>
+          prev.map((r) => (r.id === event.relatedEntityId ? { ...r, status } : r))
+        );
+      } else if (event.type === 'ADDITIONAL_INFORMATION_REQUIRED') {
+        showToast(`⚠️ Realtime [DISTRICT HOSPITAL]: Specialist requested additional information!`);
+        setHospitalReferrals((prev) =>
+          prev.map((r) =>
+            r.id === event.relatedEntityId ? { ...r, status: 'ADDITIONAL_INFORMATION_REQUIRED' } : r
+          )
+        );
+      } else if (event.type === 'ADDITIONAL_INFORMATION_SUBMITTED') {
+        showToast(`📋 Realtime [PHC]: Additional information submitted by referring doctor!`);
+        setHospitalReferrals((prev) =>
+          prev.map((r) =>
+            r.id === event.relatedEntityId ? { ...r, status: 'UNDER_REVIEW' } : r
+          )
         );
       } else if (event.type === 'DIAGNOSTIC_REPORT_AVAILABLE') {
         showToast(`🔬 Realtime [LAB]: New Diagnostic Report available for Doctor Review (ID: ${event.relatedEntityId})`);
@@ -233,6 +344,149 @@ export const DoctorView: React.FC = () => {
     } catch (err: any) {
       console.warn('Diagnostic report notify notice:', err);
       showToast(`🔬 Diagnostic report available notification sent.`);
+    }
+  };
+
+  // Action: PHC creates referral -> District Hospital
+  const handleCreateReferral = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const newRef: HospitalReferralItem = {
+        id: 'ref-dh-' + Date.now(),
+        patientId: 'p-patient-101',
+        patientName: newRefPatientName,
+        age: 32,
+        gender: 'M',
+        sourceFacilityId: 'fac-phc-karjat',
+        sourceFacilityName: 'Dhamangaon PHC, Karjat',
+        destinationFacilityId: 'fac-dh-raigad',
+        destinationFacilityName: 'Raigad District Hospital',
+        priority: newRefPriority,
+        reason: newRefReason,
+        clinicalSummary: newRefClinicalSummary,
+        status: 'CREATED',
+      };
+
+      setHospitalReferrals((prev) => [newRef, ...prev]);
+
+      await PhcDistrictHospitalCommunicationService.createPhcReferral({
+        patientId: newRef.patientId,
+        sourceFacilityId: newRef.sourceFacilityId,
+        destinationFacilityId: newRef.destinationFacilityId,
+        referringDoctorId: 'u-doc-101',
+        priority: newRef.priority,
+        reason: newRef.reason,
+        clinicalSummary: newRef.clinicalSummary,
+      });
+
+      showToast(`✅ Escalation Referral Created & Dispatched to District Hospital!`);
+      setNewRefReason('');
+      setNewRefClinicalSummary('');
+    } catch (err: any) {
+      console.warn('Referral creation notice:', err);
+      showToast('Referral created.');
+    }
+  };
+
+  // Action: District Hospital updates referral status
+  const handleUpdateReferralStatus = async (
+    referral: HospitalReferralItem,
+    newStatus: HospitalReferralStatus,
+    options?: {
+      scheduledDate?: string;
+      scheduledTime?: string;
+      rejectionReason?: string;
+      treatmentSummary?: string;
+      followUpInstructions?: string;
+    }
+  ) => {
+    try {
+      setHospitalReferrals((prev) =>
+        prev.map((r) => (r.id === referral.id ? { ...r, status: newStatus, ...options } : r))
+      );
+
+      await PhcDistrictHospitalCommunicationService.updateReferralStatus({
+        referralId: referral.id,
+        patientId: referral.patientId,
+        sourceFacilityId: referral.sourceFacilityId,
+        destinationFacilityId: referral.destinationFacilityId,
+        specialistId: 'u-dh-specialist-1',
+        status: newStatus,
+        scheduledDate: options?.scheduledDate,
+        scheduledTime: options?.scheduledTime,
+        rejectionReason: options?.rejectionReason,
+        treatmentSummary: options?.treatmentSummary,
+        followUpInstructions: options?.followUpInstructions,
+        assignedAshaId: 'u-asha-101',
+      });
+
+      showToast(`🏥 Referral status updated to ${newStatus}`);
+    } catch (err: any) {
+      console.warn('Referral update notice:', err);
+      showToast(`Referral updated to ${newStatus}`);
+    }
+  };
+
+  // Action: District Hospital requests additional info
+  const handleRequestAdditionalInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInfoReqReferral || !infoReqText.trim()) return;
+
+    try {
+      setHospitalReferrals((prev) =>
+        prev.map((r) =>
+          r.id === selectedInfoReqReferral.id
+            ? { ...r, status: 'ADDITIONAL_INFORMATION_REQUIRED', additionalInfoRequested: infoReqText.trim() }
+            : r
+        )
+      );
+
+      await PhcDistrictHospitalCommunicationService.requestAdditionalInformation({
+        referralId: selectedInfoReqReferral.id,
+        patientId: selectedInfoReqReferral.patientId,
+        sourceFacilityId: selectedInfoReqReferral.sourceFacilityId,
+        destinationFacilityId: selectedInfoReqReferral.destinationFacilityId,
+        specialistId: 'u-dh-specialist-1',
+        informationRequested: infoReqText.trim(),
+      });
+
+      showToast(`⚠️ Information Request Dispatched to Referring PHC Doctor!`);
+      setSelectedInfoReqReferral(null);
+      setInfoReqText('');
+    } catch (err: any) {
+      console.warn('Request info notice:', err);
+      showToast('Information request dispatched.');
+      setSelectedInfoReqReferral(null);
+    }
+  };
+
+  // Action: PHC responds with additional info
+  const handleSubmitAdditionalInfo = async (referral: HospitalReferralItem) => {
+    if (!infoProvideText.trim()) return;
+
+    try {
+      setHospitalReferrals((prev) =>
+        prev.map((r) =>
+          r.id === referral.id
+            ? { ...r, status: 'UNDER_REVIEW', additionalInfoProvided: infoProvideText.trim() }
+            : r
+        )
+      );
+
+      await PhcDistrictHospitalCommunicationService.submitAdditionalInformation({
+        referralId: referral.id,
+        patientId: referral.patientId,
+        sourceFacilityId: referral.sourceFacilityId,
+        destinationFacilityId: referral.destinationFacilityId,
+        doctorId: 'u-doc-101',
+        informationProvided: infoProvideText.trim(),
+      });
+
+      showToast(`📋 Additional Information Dispatched to District Hospital Specialist!`);
+      setInfoProvideText('');
+    } catch (err: any) {
+      console.warn('Submit info notice:', err);
+      showToast('Additional info submitted.');
     }
   };
 
@@ -1348,6 +1602,330 @@ export const DoctorView: React.FC = () => {
                 >
                   <span className="material-symbols-outlined text-[16px]">check_circle</span>
                   <span>{isSubmittingConsult ? 'Completing...' : 'Complete & Notify'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: PHC <-> DISTRICT HOSPITAL REFERRALS & ESCALATION MODAL */}
+      {isReferralOpen && (
+        <div className="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-black text-slate-900">Hospital Escalation & Referrals</h3>
+                <p className="text-[11px] text-slate-500 font-medium">PHC ↔ District Hospital Realtime Care</p>
+              </div>
+              <button
+                onClick={() => setIsReferralOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Referral Creation Form for PHC Doctor */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-emerald-600 text-[18px]">add_circle</span>
+                <span>Create New PHC Escalation Referral</span>
+              </h4>
+
+              <form onSubmit={handleCreateReferral} className="space-y-2.5 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-0.5 text-[10px]">Patient Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={newRefPatientName}
+                      onChange={(e) => setNewRefPatientName(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2 outline-none text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-0.5 text-[10px]">Urgency / Priority</label>
+                    <select
+                      value={newRefPriority}
+                      onChange={(e) => setNewRefPriority(e.target.value as any)}
+                      className="w-full bg-white border border-slate-200 rounded-xl p-2 outline-none text-xs font-bold text-rose-700"
+                    >
+                      <option value="RED">🔴 RED (Critical / Emergency)</option>
+                      <option value="YELLOW">🟡 YELLOW (High Risk)</option>
+                      <option value="GREEN">🟢 GREEN (Routine Specialist)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-0.5 text-[10px]">Reason for Referral *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newRefReason}
+                    onChange={(e) => setNewRefReason(e.target.value)}
+                    placeholder="e.g. Acute Coronary Syndrome"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 outline-none text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-0.5 text-[10px]">Clinical Summary *</label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={newRefClinicalSummary}
+                    onChange={(e) => setNewRefClinicalSummary(e.target.value)}
+                    placeholder="e.g. ST elevation in ECG, Troponin positive, requires cath lab"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2 outline-none text-xs"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">send</span>
+                    <span>Submit & Notify District Hospital</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Active Referral List */}
+            <div className="space-y-3 pt-1">
+              <h4 className="text-xs font-black text-slate-900">Active Hospital Referrals & Status</h4>
+
+              {hospitalReferrals.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 text-xs">No active hospital referrals.</div>
+              ) : (
+                hospitalReferrals.map((ref) => (
+                  <div
+                    key={ref.id}
+                    className={`p-3.5 rounded-2xl border transition-all space-y-2 ${
+                      ref.priority === 'RED'
+                        ? 'bg-rose-50/70 border-rose-200'
+                        : ref.priority === 'YELLOW'
+                        ? 'bg-amber-50/70 border-amber-200'
+                        : 'bg-emerald-50/70 border-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-black text-slate-900 leading-tight">{ref.patientName}</h4>
+                          <span
+                            className={`text-[8px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                              ref.priority === 'RED'
+                                ? 'bg-rose-600 text-white'
+                                : ref.priority === 'YELLOW'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-emerald-600 text-white'
+                            }`}
+                          >
+                            {ref.priority} PRIORITY
+                          </span>
+                          <span className="text-[8px] font-bold bg-slate-800 text-white px-2 py-0.5 rounded-full uppercase">
+                            {ref.status}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                          From: {ref.sourceFacilityName} ➔ To: {ref.destinationFacilityName}
+                        </p>
+                        <p className="text-[10px] text-slate-800 font-bold mt-0.5">Reason: {ref.reason}</p>
+                        <p className="text-[9px] text-slate-600 mt-0.5 bg-white/70 p-1.5 rounded-lg border border-slate-200/60">
+                          {ref.clinicalSummary}
+                        </p>
+
+                        {ref.additionalInfoRequested && (
+                          <div className="p-2 bg-amber-100/80 rounded-xl border border-amber-300 text-[10px] text-amber-900 mt-1 space-y-1">
+                            <div className="font-bold flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px]">help</span>
+                              <span>Specialist Requested Additional Info:</span>
+                            </div>
+                            <p className="italic">"{ref.additionalInfoRequested}"</p>
+                            {ref.status === 'ADDITIONAL_INFORMATION_REQUIRED' && (
+                              <div className="flex items-center gap-1 pt-1">
+                                <input
+                                  type="text"
+                                  placeholder="Type response clinical info..."
+                                  value={infoProvideText}
+                                  onChange={(e) => setInfoProvideText(e.target.value)}
+                                  className="w-full bg-white border border-amber-300 rounded-lg p-1.5 text-[10px] outline-none"
+                                />
+                                <button
+                                  onClick={() => handleSubmitAdditionalInfo(ref)}
+                                  className="bg-amber-700 text-white font-bold text-[9px] px-2.5 py-1 rounded-lg shrink-0 cursor-pointer"
+                                >
+                                  Submit
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {ref.additionalInfoProvided && (
+                          <p className="text-[9px] text-emerald-800 bg-emerald-50 p-1.5 rounded-lg border border-emerald-200 mt-1 font-semibold">
+                            ✓ Provided Info: {ref.additionalInfoProvided}
+                          </p>
+                        )}
+
+                        {ref.scheduledDate && (
+                          <p className="text-[9px] text-blue-800 bg-blue-50 p-1 rounded-lg border border-blue-200 mt-1 font-semibold">
+                            📅 Scheduled: {ref.scheduledDate} ({ref.scheduledTime || '10:00 AM'})
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* District Hospital Action Buttons */}
+                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-200/60">
+                      {ref.status === 'CREATED' && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateReferralStatus(ref, 'RECEIVED')}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Mark Received
+                          </button>
+                          <button
+                            onClick={() => handleUpdateReferralStatus(ref, 'UNDER_REVIEW')}
+                            className="bg-amber-600 hover:bg-amber-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Review
+                          </button>
+                        </>
+                      )}
+
+                      {(ref.status === 'CREATED' || ref.status === 'RECEIVED' || ref.status === 'UNDER_REVIEW') && (
+                        <>
+                          <button
+                            onClick={() => handleUpdateReferralStatus(ref, 'ACCEPTED')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleUpdateReferralStatus(ref, 'REJECTED', { rejectionReason: 'Bed capacity full / transferred' })}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => setSelectedInfoReqReferral(ref)}
+                            className="bg-purple-600 hover:bg-purple-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Request Info
+                          </button>
+                        </>
+                      )}
+
+                      {ref.status === 'ACCEPTED' && (
+                        <>
+                          <button
+                            onClick={() =>
+                              handleUpdateReferralStatus(ref, 'APPOINTMENT_SCHEDULED', {
+                                scheduledDate: '2026-05-20',
+                                scheduledTime: '10:30 AM',
+                              })
+                            }
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Schedule Appointment
+                          </button>
+                          <button
+                            onClick={() => handleUpdateReferralStatus(ref, 'IN_PROGRESS')}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            In Progress
+                          </button>
+                        </>
+                      )}
+
+                      {(ref.status === 'APPOINTMENT_SCHEDULED' || ref.status === 'IN_PROGRESS') && (
+                        <>
+                          <button
+                            onClick={() =>
+                              handleUpdateReferralStatus(ref, 'COMPLETED', {
+                                treatmentSummary: 'Coronary angioplasty successful. Patient stable.',
+                              })
+                            }
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Complete Treatment
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleUpdateReferralStatus(ref, 'RETURNED_TO_PHC', {
+                                followUpInstructions: 'Monitor BP and compliance with dual antiplatelet therapy weekly.',
+                              })
+                            }
+                            className="bg-teal-700 hover:bg-teal-800 text-white text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                          >
+                            Return to PHC
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: DH SPECIALIST REQUEST ADDITIONAL INFORMATION MODAL */}
+      {selectedInfoReqReferral && (
+        <div className="fixed inset-0 z-[130] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Request Additional Info</h3>
+                <p className="text-[10px] text-slate-500 font-semibold">
+                  From: {selectedInfoReqReferral.sourceFacilityName}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedInfoReqReferral(null)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestAdditionalInfo} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-800 mb-1">
+                  Specific Information Required *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={infoReqText}
+                  onChange={(e) => setInfoReqText(e.target.value)}
+                  placeholder="e.g. Please provide latest serum creatinine and 12-lead ECG strip."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-none text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInfoReqReferral(null)}
+                  className="px-3 py-1.5 text-slate-600 font-bold hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-xs cursor-pointer flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[14px]">send</span>
+                  <span>Send Request</span>
                 </button>
               </div>
             </form>

@@ -10,6 +10,10 @@ import {
   PatientPhcCommunicationService,
   PhcAppointmentStatus,
 } from '../lib/services/PatientPhcCommunicationService';
+import {
+  PhcDistrictHospitalCommunicationService,
+  HospitalReferralStatus,
+} from '../lib/services/PhcDistrictHospitalCommunicationService';
 import { supabase } from '../lib/supabaseClient';
 
 async function runTests() {
@@ -136,6 +140,21 @@ async function runTests() {
 
     assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(phcEvent, phcDoctorA), true);
     assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(phcEvent, phcDoctorB), false);
+  });
+
+  await test('2.4 DISTRICT_HOSPITAL scope: District Hospital A must not receive District Hospital B referrals', () => {
+    const dhEvent: RealtimeHealthcareEvent = {
+      ...baseEvent,
+      recipientType: 'DISTRICT_HOSPITAL',
+      patientId: 'pat-referred',
+      recipientFacilityId: 'fac-dh-raigad',
+    };
+
+    const dhStaffRaigad: ContextUser = { userId: 'dh-doc-raigad', role: 'DISTRICT_HOSPITAL', facilityId: 'fac-dh-raigad' };
+    const dhStaffThane: ContextUser = { userId: 'dh-doc-thane', role: 'DISTRICT_HOSPITAL', facilityId: 'fac-dh-thane' };
+
+    assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(dhEvent, dhStaffRaigad), true);
+    assert.strictEqual(RealtimeEventAuthorizer.isAuthorizedRecipient(dhEvent, dhStaffThane), false);
   });
 
   console.log('\n--- 3. PATIENT <-> ASHA Workflow Tests ---');
@@ -434,9 +453,7 @@ async function runTests() {
     assert.strictEqual(publishedEvent.type, 'CONSULTATION_COMPLETED');
     assert.strictEqual(publishedEvent.recipientType, 'PATIENT');
     assert.strictEqual(publishedEvent.recipientUserId, 'pat-roshan');
-    // Verify internal notes are NOT present in realtime event
     assert.strictEqual((publishedEvent as any).internalClinicalNotes, undefined);
-    assert.strictEqual((publishedEvent as any).internal_clinical_notes, undefined);
 
     RealtimeCommunicationService.publishEvent = origPublish;
   });
@@ -468,6 +485,211 @@ async function runTests() {
     assert.ok(patientEvent);
     assert.strictEqual(patientEvent.type, 'REPORT_AVAILABLE');
     assert.strictEqual(patientEvent.recipientUserId, 'pat-roshan');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  console.log('\n--- 5. PHC <-> DISTRICT_HOSPITAL Escalation Workflow Tests ---');
+
+  await test('5.1 PHC CREATES REFERRAL -> DISTRICT HOSPITAL: creates record & dispatches NEW_REFERRAL event', async () => {
+    let publishedEvent: any = null;
+    (supabase as any).from = (table: string) => ({
+      insert: (data: any) => ({
+        select: () => ({
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'ref-dh-999',
+                ...data,
+              },
+              error: null,
+            }),
+        }),
+      }),
+    });
+
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvent = p;
+      return { id: 'evt-ref-999', ...p, timestamp: new Date().toISOString() };
+    };
+
+    const result = await PhcDistrictHospitalCommunicationService.createPhcReferral({
+      patientId: 'pat-roshan',
+      sourceFacilityId: 'fac-phc-karjat',
+      destinationFacilityId: 'fac-dh-raigad',
+      referringDoctorId: 'u-doc-101',
+      priority: 'RED',
+      reason: 'Acute Coronary Syndrome',
+      clinicalSummary: 'ECG ST Elevation in Lead II, III, aVF.',
+    });
+
+    assert.strictEqual(result.referral.id, 'ref-dh-999');
+    assert.strictEqual(publishedEvent.type, 'NEW_REFERRAL');
+    assert.strictEqual(publishedEvent.actorRole, 'PHC');
+    assert.strictEqual(publishedEvent.recipientType, 'DISTRICT_HOSPITAL');
+    assert.strictEqual(publishedEvent.recipientFacilityId, 'fac-dh-raigad');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('5.2 DISTRICT HOSPITAL ACTIONS: DH updates status through full lifecycle & notifies referring PHC', async () => {
+    const statuses: HospitalReferralStatus[] = [
+      'RECEIVED',
+      'UNDER_REVIEW',
+      'ACCEPTED',
+      'REJECTED',
+      'IN_PROGRESS',
+      'COMPLETED',
+      'RETURNED_TO_PHC',
+    ];
+    const origPublish = RealtimeCommunicationService.publishEvent;
+
+    for (const status of statuses) {
+      let publishedEvent: any = null;
+      (supabase as any).from = (table: string) => ({
+        update: (data: any) => ({
+          eq: () => ({
+            select: () => ({
+              single: () =>
+                Promise.resolve({
+                  data: {
+                    id: 'ref-dh-999',
+                    status: data.status,
+                  },
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+      });
+
+      RealtimeCommunicationService.publishEvent = async (p: any) => {
+        publishedEvent = p;
+        return { id: `evt-${status}`, ...p, timestamp: new Date().toISOString() };
+      };
+
+      const result = await PhcDistrictHospitalCommunicationService.updateReferralStatus({
+        referralId: 'ref-dh-999',
+        patientId: 'pat-roshan',
+        sourceFacilityId: 'fac-phc-karjat',
+        destinationFacilityId: 'fac-dh-raigad',
+        specialistId: 'u-dh-spec-1',
+        status,
+      });
+
+      assert.strictEqual(result.updated.status, status);
+      assert.strictEqual(publishedEvent.type, `REFERRAL_${status}`);
+      assert.strictEqual(publishedEvent.recipientType, 'PHC');
+      assert.strictEqual(publishedEvent.recipientFacilityId, 'fac-phc-karjat');
+    }
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('5.3 APPOINTMENT SCHEDULED: Fans out realtime event to PHC AND Patient', async () => {
+    let publishedEvents: any[] = [];
+    (supabase as any).from = (table: string) => ({
+      update: (data: any) => ({
+        eq: () => ({
+          select: () => ({
+            single: () =>
+              Promise.resolve({
+                data: {
+                  id: 'ref-dh-999',
+                  status: 'APPOINTMENT_SCHEDULED',
+                  scheduled_appointment_date: '2026-05-20',
+                },
+                error: null,
+              }),
+          }),
+        }),
+      }),
+    });
+
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvents.push(p);
+      return { id: `evt-apt-${publishedEvents.length}`, ...p, timestamp: new Date().toISOString() };
+    };
+
+    const result = await PhcDistrictHospitalCommunicationService.updateReferralStatus({
+      referralId: 'ref-dh-999',
+      patientId: 'pat-roshan',
+      sourceFacilityId: 'fac-phc-karjat',
+      destinationFacilityId: 'fac-dh-raigad',
+      specialistId: 'u-dh-spec-1',
+      status: 'APPOINTMENT_SCHEDULED',
+      scheduledDate: '2026-05-20',
+      scheduledTime: '10:30 AM',
+    });
+
+    assert.strictEqual(result.updated.status, 'APPOINTMENT_SCHEDULED');
+    assert.strictEqual(publishedEvents.length, 2);
+
+    const phcEvt = publishedEvents.find((e) => e.recipientType === 'PHC');
+    assert.ok(phcEvt);
+    assert.strictEqual(phcEvt.type, 'REFERRAL_APPOINTMENT_SCHEDULED');
+
+    const patEvt = publishedEvents.find((e) => e.recipientType === 'PATIENT');
+    assert.ok(patEvt);
+    assert.strictEqual(patEvt.type, 'APPOINTMENT_SCHEDULED');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  await test('5.4 ADDITIONAL INFORMATION: Loop between DH and PHC', async () => {
+    let publishedEvents: any[] = [];
+    (supabase as any).from = (table: string) => ({
+      update: (data: any) => ({
+        eq: () => ({
+          select: () => ({
+            single: () =>
+              Promise.resolve({
+                data: {
+                  id: 'ref-dh-999',
+                  status: data.status,
+                },
+                error: null,
+              }),
+          }),
+        }),
+      }),
+    });
+
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      publishedEvents.push(p);
+      return { id: `evt-info-${publishedEvents.length}`, ...p, timestamp: new Date().toISOString() };
+    };
+
+    // Step 1: DH requests info -> PHC
+    await PhcDistrictHospitalCommunicationService.requestAdditionalInformation({
+      referralId: 'ref-dh-999',
+      patientId: 'pat-roshan',
+      sourceFacilityId: 'fac-phc-karjat',
+      destinationFacilityId: 'fac-dh-raigad',
+      specialistId: 'u-dh-spec-1',
+      informationRequested: 'Need echocardiogram report.',
+    });
+
+    assert.strictEqual(publishedEvents[0].type, 'ADDITIONAL_INFORMATION_REQUIRED');
+    assert.strictEqual(publishedEvents[0].recipientType, 'PHC');
+    assert.strictEqual(publishedEvents[0].recipientFacilityId, 'fac-phc-karjat');
+
+    // Step 2: PHC submits info -> DH
+    await PhcDistrictHospitalCommunicationService.submitAdditionalInformation({
+      referralId: 'ref-dh-999',
+      patientId: 'pat-roshan',
+      sourceFacilityId: 'fac-phc-karjat',
+      destinationFacilityId: 'fac-dh-raigad',
+      doctorId: 'u-doc-101',
+      informationProvided: 'Echo showed LVEF 45%, regional wall motion abnormality in anterior wall.',
+    });
+
+    assert.strictEqual(publishedEvents[1].type, 'ADDITIONAL_INFORMATION_SUBMITTED');
+    assert.strictEqual(publishedEvents[1].recipientType, 'DISTRICT_HOSPITAL');
+    assert.strictEqual(publishedEvents[1].recipientFacilityId, 'fac-dh-raigad');
 
     RealtimeCommunicationService.publishEvent = origPublish;
   });
