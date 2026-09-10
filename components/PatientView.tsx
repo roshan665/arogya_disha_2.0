@@ -4,6 +4,7 @@ import { createClient } from '../lib/supabase/client';
 import { saveVisitOffline } from '../lib/db';
 import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
 import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
+import { PatientAshaCommunicationService } from '../lib/services/PatientAshaCommunicationService';
 
 interface PatientViewProps {
   user?: any;
@@ -286,7 +287,24 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     userId: patientUserId,
     onEventReceived: (event) => {
       console.log('PATIENT received authorized realtime event:', event.type);
-      if (event.type.startsWith('APPOINTMENT_') || event.type.startsWith('REFERRAL_')) {
+      if (event.type.startsWith('REQUEST_')) {
+        const statusType = event.type.replace('REQUEST_', '');
+        showToast(
+          language === 'mr'
+            ? `आशा ताईंनी विनंती स्थिती अद्यतनित केली: ${statusType}`
+            : language === 'hi'
+            ? `आशा दीदी ने अनुरोध स्थिति अपडेट की: ${statusType}`
+            : `ASHA updated request status: ${statusType}`
+        );
+      } else if (event.type === 'ASHA_FOLLOWUP_RECORDED') {
+        showToast(
+          language === 'mr'
+            ? 'आशा ताईंनी नवीन पाठपुरावा नोंदवला आहे.'
+            : language === 'hi'
+            ? 'आशा दीदी ने नया फॉलो-अप दर्ज किया है।'
+            : 'ASHA recorded a new follow-up update.'
+        );
+      } else if (event.type.startsWith('APPOINTMENT_') || event.type.startsWith('REFERRAL_')) {
         showToast(
           language === 'mr'
             ? `आरोग्य अपडेट प्राप्त: ${event.type}`
@@ -411,18 +429,31 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     showToast(lang.emergencyTransmitted);
   };
 
-  const handleSendChatMessage = (e: React.FormEvent) => {
+  const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMsg.trim()) return;
 
+    const messageText = inputMsg.trim();
     const newMsg = {
       sender: 'You',
-      text: inputMsg.trim(),
+      text: messageText,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setChatMessages((prev) => [...prev, newMsg]);
     setInputMsg('');
+
+    // Dispatch realtime request to assigned ASHA Sunita More
+    try {
+      await PatientAshaCommunicationService.requestAshaAssistance({
+        patientId: patientUserId,
+        ashaId: 'u-asha-101',
+        requestType: 'GENERAL_ASSISTANCE',
+        message: messageText,
+      });
+    } catch (err) {
+      console.warn('Realtime assistance request dispatch notice:', err);
+    }
 
     // Auto-reply simulation from ASHA Worker
     setTimeout(() => {
@@ -432,6 +463,8 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
           sender: 'ASHA Sunita',
           text: language === 'mr'
             ? `नमस्ते ${patientName}! तुमचा संदेश मिळाला. मी धामणगाव प्रा.आ.कें. डॉक्टरांशी चर्चा करून तुम्हाला कळवते.`
+            : language === 'hi'
+            ? `नमस्ते ${patientName}! आपका संदेश मिल गया है। मैं धामणगांव प्राथमिक स्वास्थ्य केंद्र के डॉक्टर से समन्वय करके आपको बताती हूँ।`
             : `Thank you for reaching out, ${patientName}. I have noted your request and will coordinate with PHC Karjat doctor.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },

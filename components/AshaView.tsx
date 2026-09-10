@@ -4,6 +4,7 @@ import { createClient } from '../lib/supabase/client';
 import { saveVisitOffline, RiskScore } from '../lib/db';
 import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
 import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
+import { PatientAshaCommunicationService, AssistanceRequestStatus } from '../lib/services/PatientAshaCommunicationService';
 
 interface AshaViewProps {
   isOffline: boolean;
@@ -418,6 +419,25 @@ export const AshaView: React.FC<AshaViewProps> = ({
   const { schedule, loading } = useAshaDashboard('dummy-asha-id');
   const [patientAppointments, setPatientAppointments] = useState<any[]>([]);
 
+  // Live Patient Assistance Requests State
+  const [assistanceRequests, setAssistanceRequests] = useState<Array<{
+    id: string;
+    patientId: string;
+    patientName: string;
+    message: string;
+    status: AssistanceRequestStatus;
+    time: string;
+  }>>([
+    {
+      id: 'req-101',
+      patientId: 'p-patient-101',
+      patientName: 'Roshan Sahani',
+      message: 'Need ANC checkup advice and medicine refill coordination.',
+      status: 'PENDING',
+      time: '10:15 AM',
+    },
+  ]);
+
   // Role-Based Realtime Communication Hook (Authorized for ASHA)
   const ashaUserId = user?.id || 'u-asha-101';
   useRoleRealtimeCommunication({
@@ -425,15 +445,51 @@ export const AshaView: React.FC<AshaViewProps> = ({
     userId: ashaUserId,
     onEventReceived: (event) => {
       console.log('ASHA received authorized realtime event:', event.type);
-      const alertMsg =
-        language === 'mr'
-          ? `🔔 आशा सूचना: ${event.type}`
-          : language === 'hi'
-          ? `🔔 आशा सूचना: ${event.type}`
-          : `🔔 ASHA Alert: ${event.type}`;
-      showToast(alertMsg);
+      if (event.type === 'NEW_PATIENT_REQUEST') {
+        const newReq = {
+          id: event.relatedEntityId || 'req-' + Date.now(),
+          patientId: event.patientId,
+          patientName: 'Roshan Sahani',
+          message: 'Patient requested assistance from portal',
+          status: 'PENDING' as AssistanceRequestStatus,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setAssistanceRequests((prev) => [newReq, ...prev]);
+        const alertMsg =
+          language === 'mr'
+            ? '🔔 नवीन रुग्ण सहाय्य विनंती प्राप्त!'
+            : language === 'hi'
+            ? '🔔 नया मरीज़ सहायता अनुरोध प्राप्त!'
+            : '🔔 New Patient Assistance Request Received!';
+        showToast(alertMsg);
+      } else {
+        const alertMsg =
+          language === 'mr'
+            ? `🔔 आशा सूचना: ${event.type}`
+            : language === 'hi'
+            ? `🔔 आशा सूचना: ${event.type}`
+            : `🔔 ASHA Alert: ${event.type}`;
+        showToast(alertMsg);
+      }
     },
   });
+
+  const handleUpdateRequestStatus = async (requestId: string, patientId: string, newStatus: AssistanceRequestStatus) => {
+    setAssistanceRequests((prev) =>
+      prev.map((req) => (req.id === requestId ? { ...req, status: newStatus } : req))
+    );
+    try {
+      await PatientAshaCommunicationService.updateAssistanceRequestStatus({
+        requestId,
+        patientId,
+        ashaId: ashaUserId,
+        status: newStatus,
+      });
+      showToast(`Request updated: ${newStatus}`);
+    } catch (e) {
+      console.warn('Update status notice:', e);
+    }
+  };
 
   // Load patient appointments and registered patients on mount + Listen across tabs & Supabase
   useEffect(() => {
@@ -966,6 +1022,97 @@ export const AshaView: React.FC<AshaViewProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Live Patient Assistance Requests (Realtime PATIENT -> ASHA) */}
+            {assistanceRequests.length > 0 && (
+              <div className="bg-white rounded-3xl p-4 border border-indigo-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-indigo-50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      {language === 'mr'
+                        ? 'रुग्ण सहाय्य विनंत्या (Live Requests)'
+                        : language === 'hi'
+                        ? 'मरीज़ सहायता अनुरोध (Live Requests)'
+                        : 'Patient Assistance Requests (Live)'}
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                    {assistanceRequests.filter((r) => r.status === 'PENDING').length} Pending
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {assistanceRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-3 rounded-2xl bg-indigo-50/40 border border-indigo-100 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
+                            {req.patientName.charAt(0)}
+                          </span>
+                          <div>
+                            <div className="text-xs font-extrabold text-slate-900">{req.patientName}</div>
+                            <div className="text-[10px] font-medium text-slate-500">{req.time}</div>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                            req.status === 'PENDING'
+                              ? 'bg-amber-100 text-amber-800'
+                              : req.status === 'ACCEPTED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : req.status === 'VISIT_SCHEDULED'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-100">
+                        "{req.message}"
+                      </p>
+
+                      {/* Quick Action Buttons */}
+                      <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateRequestStatus(req.id, req.patientId, 'ACCEPTED')}
+                          className="text-[10px] font-bold bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateRequestStatus(req.id, req.patientId, 'CONTACTED')}
+                          className="text-[10px] font-bold bg-teal-600 hover:bg-teal-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                        >
+                          Contacted
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateRequestStatus(req.id, req.patientId, 'VISIT_SCHEDULED')}
+                          className="text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                        >
+                          Schedule Visit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateRequestStatus(req.id, req.patientId, 'COMPLETED')}
+                          className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                        >
+                          Complete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Today's Schedule */}
             <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">
