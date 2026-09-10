@@ -9,6 +9,11 @@ import { PatientPhcCommunicationService } from '../lib/services/PatientPhcCommun
 import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
 import { useRoleBasedNotifications } from '../lib/hooks/useRoleBasedNotifications';
 import { NotificationCenterModal } from './NotificationCenterModal';
+import {
+  OnboardingProfileService,
+  PatientProfileData,
+} from '../lib/services/OnboardingProfileService';
+import { ProfileSettingsModal } from './ProfileSettingsModal';
 
 interface PatientViewProps {
   user?: any;
@@ -253,20 +258,6 @@ const t = {
   }
 };
 
-const INITIAL_APPOINTMENTS: AppointmentItem[] = [
-  {
-    id: 'apt-101',
-    type: 'ANC Routine Checkup',
-    date: '15 May 2026',
-    rawDate: '2026-05-15',
-    time: '10:00 AM',
-    doctorOrAsha: 'Sunita More (ASHA)',
-    facility: 'Dhamangaon Sub-center',
-    status: 'CONFIRMED',
-    patientName: 'Roshan Sahani',
-  }
-];
-
 export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
   const router = useRouter();
   const [language, setLanguage] = useState<'mr' | 'hi' | 'en'>('en');
@@ -274,26 +265,52 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'appointments' | 'reports' | 'profile'>('home');
 
-  // Appointments state with local persistence
-  const [appointments, setAppointments] = useState<AppointmentItem[]>(INITIAL_APPOINTMENTS);
+  // Real Profile State
+  const [realProfile, setRealProfile] = useState<PatientProfileData | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Load saved appointments from localStorage on mount
+  // Appointments state with zero fake data
+  const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
+
+  const patientUserId = user?.id || 'p-patient-101';
+
+  // Load real patient profile and appointments from database
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('arogya_appointments');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAppointments(parsed);
+    if (user?.id) {
+      OnboardingProfileService.getRoleProfile(user.id, 'PATIENT').then((prof) => {
+        if (prof) setRealProfile(prof);
+      });
+
+      const fetchDbAppointments = async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('phc_appointments')
+          .select('*')
+          .eq('patient_id', user.id)
+          .order('date', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          setAppointments(
+            data.map((row: any) => ({
+              id: row.id,
+              type: row.consult_type || 'General OPD',
+              date: row.date,
+              rawDate: row.date,
+              time: row.time_slot || '10:00 AM',
+              doctorOrAsha: row.doctor_id || 'PHC Medical Officer',
+              facility: row.facility_id || 'Karjat PHC',
+              status: row.status,
+              patientName: row.patient_name || realProfile?.full_name || 'Patient',
+            }))
+          );
         }
-      }
-    } catch (e) {
-      console.warn('Error loading appointments from localStorage:', e);
+      };
+
+      fetchDbAppointments();
     }
-  }, []);
+  }, [user?.id]);
 
   // Role-Based Realtime Communication Hook (Authorized for PATIENT)
-  const patientUserId = user?.id || 'p-patient-101';
   useRoleRealtimeCommunication({
     role: 'PATIENT',
     userId: patientUserId,
@@ -472,7 +489,21 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
     router.push('/login');
   };
 
-  const patientName = user?.user_metadata?.full_name || 'Roshan Sahani';
+  const patientName = realProfile?.full_name || user?.user_metadata?.full_name || 'Patient';
+  const patientPhone = realProfile?.phone || user?.phone || 'Not configured';
+  const patientAddress = realProfile
+    ? `${realProfile.address}, ${realProfile.village}, ${realProfile.district}`
+    : 'Village Dhamangaon, Karjat, Raigad';
+  const patientEmergencyContact = realProfile?.emergency_contact_name
+    ? `${realProfile.emergency_contact_name} (${realProfile.emergency_contact_phone || 'N/A'})`
+    : 'None specified';
+  const patientInitials = (
+    patientName
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .slice(0, 2) || 'P'
+  ).toUpperCase();
   const abhaId = '91-8402-1928-3012';
 
   // 108 Ambulance ETA Timer
@@ -1330,45 +1361,25 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
                 <p className="text-xs text-slate-500">{lang.reportsSubtitle}</p>
               </div>
 
-              <div className="space-y-2.5 text-xs">
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-slate-900">CBC Complete Blood Count</div>
-                    <div className="text-[10px] text-emerald-700 font-semibold">12 May 2024 • Normal (Hb: 12.5 g/dL)</div>
-                  </div>
-                  <button
-                    onClick={() => showToast(language === 'mr' ? 'सीबीसी अहवाल डाऊनलोड होत आहे...' : 'Downloading CBC Report PDF...')}
-                    className="text-xs font-bold text-emerald-600 hover:underline bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
-                  >
-                    {lang.download}
-                  </button>
+              {/* Clean Empty State for Diagnostic Reports */}
+              <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 text-center space-y-2.5">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto">
+                  <span className="material-symbols-outlined text-2xl">biotech</span>
                 </div>
-
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-slate-900">Fasting Blood Sugar Test</div>
-                    <div className="text-[10px] text-emerald-700 font-semibold">08 May 2024 • 98 mg/dL (Normal)</div>
-                  </div>
-                  <button
-                    onClick={() => showToast(language === 'mr' ? 'शुगर अहवाल डाऊनलोड होत आहे...' : 'Downloading Sugar Report PDF...')}
-                    className="text-xs font-bold text-emerald-600 hover:underline bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
-                  >
-                    {lang.download}
-                  </button>
+                <div className="text-xs font-bold text-slate-800">
+                  {language === 'mr'
+                    ? 'सध्या कोणतेही नैदानिक प्रयोगशाळा अहवाल उपलब्ध नाहीत.'
+                    : language === 'hi'
+                    ? 'वर्तमान में कोई नैदानिक प्रयोगशाला रिपोर्ट उपलब्ध नहीं है।'
+                    : 'No diagnostic reports available yet.'}
                 </div>
-
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <div className="font-bold text-slate-900">ANC Routine Urine Screen</div>
-                    <div className="text-[10px] text-emerald-700 font-semibold">02 May 2024 • Clear / Sugar Nil</div>
-                  </div>
-                  <button
-                    onClick={() => showToast(language === 'mr' ? 'युरिन अहवाल डाऊनलोड होत आहे...' : 'Downloading Urine Report PDF...')}
-                    className="text-xs font-bold text-emerald-600 hover:underline bg-white px-2.5 py-1 rounded-lg border border-emerald-200"
-                  >
-                    {lang.download}
-                  </button>
-                </div>
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  {language === 'mr'
+                    ? 'प्रा.आ.केंद्राच्या प्रयोगशाळेतून चाचणी अहवाल नोंदवले गेल्यास ते येथे सुरक्षितपणे दिसतील.'
+                    : language === 'hi'
+                    ? 'पीएचसी प्रयोगशाला द्वारा परीक्षण रिपोर्ट दर्ज किए जाने पर वे यहां प्रदर्शित होंगी।'
+                    : 'Verified laboratory test results and blood reports ordered by your doctor will securely appear here.'}
+                </p>
               </div>
             </div>
           </div>
@@ -1382,55 +1393,76 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xl flex items-center justify-center shadow-md">
-                  RP
+                  {patientInitials}
                 </div>
-                <div>
+                <div className="flex-1">
                   <h2 className="text-base font-black text-slate-900">{patientName}</h2>
-                  <p className="text-xs text-slate-500 font-medium">ABHA ID: {abhaId}</p>
-                  <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full mt-1 border border-emerald-200">
-                    {lang.pmjayActive}
-                  </span>
+                  <p className="text-xs text-slate-500 font-medium">Phone: {patientPhone}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                      Blood Group: {realProfile?.blood_group || 'O+'}
+                    </span>
+                    <span className="inline-block bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
+                      Verified Patient
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Personal Info & Work Association */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-100 space-y-2 text-xs text-slate-600">
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2.5 text-xs text-slate-600">
                 <h4 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-wider">
                   {lang.personalInfo}
                 </h4>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-slate-400 text-[16px]">location_on</span>
-                    <span>{lang.address}</span>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-slate-400 text-[16px] shrink-0 mt-0.5">location_on</span>
+                    <span>{patientAddress}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-slate-400 text-[16px]">support_agent</span>
-                    <span className="font-semibold">{lang.assignedAsha}</span>
+                    <span className="material-symbols-outlined text-slate-400 text-[16px] shrink-0">contact_emergency</span>
+                    <span>Emergency Contact: <strong className="text-slate-800">{patientEmergencyContact}</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-slate-400 text-[16px]">local_hospital</span>
-                    <span>{lang.primaryCenter}</span>
+                    <span className="material-symbols-outlined text-slate-400 text-[16px] shrink-0">local_hospital</span>
+                    <span>Primary Facility: <strong className="text-slate-800">Karjat PHC, Raigad</strong></span>
                   </div>
                 </div>
               </div>
+
+              {/* Edit Profile Button */}
+              <button
+                type="button"
+                onClick={() => setIsProfileModalOpen(true)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3 rounded-2xl transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">edit</span>
+                <span>
+                  {language === 'mr'
+                    ? 'आरोग्य प्रोफाइल संपादित करा'
+                    : language === 'hi'
+                    ? 'स्वास्थ्य प्रोफाइल संपादित करें'
+                    : 'Edit Health Profile'}
+                </span>
+              </button>
 
               {/* Language Switcher in Profile */}
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
                 <div className="flex items-center gap-2.5">
                   <span className="material-symbols-outlined text-emerald-600 text-[20px]">translate</span>
                   <span className="font-bold text-slate-800">
-                    {language === 'mr' ? 'भाषा: मराठी' : 'Language: English'}
+                    {language === 'mr' ? 'भाषा: मराठी' : language === 'hi' ? 'भाषा: हिंदी' : 'Language: English'}
                   </span>
                 </div>
                 <button
                   onClick={() => {
-                    const nextLang = language === 'mr' ? 'en' : 'mr';
+                    const nextLang = language === 'en' ? 'mr' : language === 'mr' ? 'hi' : 'en';
                     setLanguage(nextLang);
-                    showToast(nextLang === 'mr' ? t.mr.languageSet : t.en.languageSet);
+                    showToast(t[nextLang].languageSet);
                   }}
                   className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 font-bold text-emerald-700 shadow-xs hover:bg-slate-100 cursor-pointer"
                 >
-                  {language === 'mr' ? 'Switch to English' : 'मराठी निवडा'}
+                  {language === 'en' ? 'मराठी' : language === 'mr' ? 'हिंदी' : 'English'}
                 </button>
               </div>
 
@@ -1909,6 +1941,16 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             setActiveTab('reports');
           }
         }}
+      />
+
+      {/* Profile Settings Modal */}
+      <ProfileSettingsModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        userId={patientUserId}
+        role="PATIENT"
+        language={language}
+        onProfileUpdated={(updated) => setRealProfile(updated)}
       />
     </div>
   );

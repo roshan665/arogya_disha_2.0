@@ -13,6 +13,14 @@ import {
 import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
 import { useRoleBasedNotifications } from '../lib/hooks/useRoleBasedNotifications';
 import { NotificationCenterModal } from './NotificationCenterModal';
+import { OnboardingProfileService } from '../lib/services/OnboardingProfileService';
+import { ProfileSettingsModal } from './ProfileSettingsModal';
+
+export interface DoctorViewProps {
+  user?: any;
+  role?: 'PHC' | 'DISTRICT_HOSPITAL' | string;
+  onSignOut?: () => void;
+}
 
 export interface DoctorReferral {
   id: string;
@@ -65,97 +73,54 @@ export interface HospitalReferralItem {
   treatmentSummary?: string;
 }
 
-export const DoctorView: React.FC = () => {
+export const DoctorView: React.FC<DoctorViewProps> = ({ user, role: initialRole, onSignOut }) => {
+  const doctorId = user?.id || user?.user_id || 'u-doc-101';
+  const resolvedRole = (user?.user_metadata?.role === 'DISTRICT_HOSPITAL' || initialRole === 'DISTRICT_HOSPITAL')
+    ? 'DISTRICT_HOSPITAL'
+    : 'PHC';
+
+  const [facilityProfile, setFacilityProfile] = useState<any>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'home' | 'patients' | 'reports' | 'profile'>('home');
 
-  // PHC Appointment Queue State
-  const [opdAppointments, setOpdAppointments] = useState<PhcAppointmentQueueItem[]>([
-    {
-      id: 'apt-phc-101',
-      patientId: 'p-patient-101',
-      patientName: 'Roshan Sahani',
-      age: 28,
-      gender: 'M',
-      village: 'Dhamangaon (Ward 2)',
-      status: 'CHECKED_IN',
-      consultType: 'General OPD / Fever',
-      date: '2026-05-18',
-      timeSlot: '10:00 AM',
-      notes: 'Experiencing mild fever for 2 days',
-    },
-    {
-      id: 'apt-phc-102',
-      patientId: 'p-patient-102',
-      patientName: 'Sunita More',
-      age: 26,
-      gender: 'F',
-      village: 'Dhamangaon Sub-center',
-      status: 'REQUESTED',
-      consultType: 'ANC Routine Checkup',
-      date: '2026-05-19',
-      timeSlot: '11:00 AM',
-      notes: 'Second trimester routine checkup',
-    },
-    {
-      id: 'apt-phc-103',
-      patientId: 'p-patient-103',
-      patientName: 'Amit Deshmukh',
-      age: 45,
-      gender: 'M',
-      village: 'Karjat Rural',
-      status: 'CONFIRMED',
-      consultType: 'Hypertension Follow-up',
-      date: '2026-05-18',
-      timeSlot: '11:30 AM',
-      notes: 'BP medicine renewal',
-    },
-  ]);
+  // PHC Appointment Queue State (Starts empty, loads from Supabase & Realtime)
+  const [opdAppointments, setOpdAppointments] = useState<PhcAppointmentQueueItem[]>([]);
 
   // Hospital Referrals State (PHC <-> District Hospital)
-  const [hospitalReferrals, setHospitalReferrals] = useState<HospitalReferralItem[]>([
-    {
-      id: 'ref-dh-101',
-      patientId: 'p-patient-101',
-      patientName: 'Roshan Sahani',
-      age: 28,
-      gender: 'M',
-      sourceFacilityId: 'fac-phc-karjat',
-      sourceFacilityName: 'Dhamangaon PHC, Karjat',
-      destinationFacilityId: 'fac-dh-raigad',
-      destinationFacilityName: 'Raigad District Hospital (Cardiology Unit)',
-      priority: 'RED',
-      reason: 'Suspected Myocardial Infarction / Unstable Angina',
-      clinicalSummary: 'ECG ST Elevation in Lead II, III, aVF. BP 170/105 mmHg, Troponin T Positive.',
-      status: 'UNDER_REVIEW',
-    },
-    {
-      id: 'ref-dh-102',
-      patientId: 'p-patient-102',
-      patientName: 'Sunita More',
-      age: 26,
-      gender: 'F',
-      sourceFacilityId: 'fac-phc-karjat',
-      sourceFacilityName: 'Dhamangaon PHC, Karjat',
-      destinationFacilityId: 'fac-dh-raigad',
-      destinationFacilityName: 'Raigad District Hospital (Obstetrics)',
-      priority: 'YELLOW',
-      reason: 'High-Risk Pregnancy (Gestational Diabetes + Severe Anemia)',
-      clinicalSummary: 'ANC Trimester 2, Hb 7.8 gm/dL, OGTT 190 mg/dL. Requires specialist OBGYN review.',
-      status: 'ACCEPTED',
-      scheduledDate: '2026-05-20',
-      scheduledTime: '10:00 AM',
-    },
-  ]);
+  const [hospitalReferrals, setHospitalReferrals] = useState<HospitalReferralItem[]>([]);
 
   // Referral Creation & Info Request State
-  const [newRefPatientName, setNewRefPatientName] = useState('Roshan Sahani');
+  const [newRefPatientName, setNewRefPatientName] = useState('');
   const [newRefPriority, setNewRefPriority] = useState<'RED' | 'YELLOW' | 'GREEN'>('RED');
-  const [newRefReason, setNewRefReason] = useState('Severe Chest Pain / Acute Coronary Syndrome');
-  const [newRefClinicalSummary, setNewRefClinicalSummary] = useState('ECG reveals acute ischemic changes. Requires immediate angiography.');
+  const [newRefReason, setNewRefReason] = useState('');
+  const [newRefClinicalSummary, setNewRefClinicalSummary] = useState('');
   const [selectedInfoReqReferral, setSelectedInfoReqReferral] = useState<HospitalReferralItem | null>(null);
   const [infoReqText, setInfoReqText] = useState('');
   const [infoProvideText, setInfoProvideText] = useState('');
+
+  // Fetch real facility & provider profile on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDoctorFacilityProfile() {
+      setIsLoadingProfile(true);
+      try {
+        const { profile } = await OnboardingProfileService.getRoleProfile(doctorId, resolvedRole);
+        if (isMounted && profile) {
+          setFacilityProfile(profile);
+        }
+      } catch (err) {
+        console.warn('Error loading doctor facility profile:', err);
+      } finally {
+        if (isMounted) setIsLoadingProfile(false);
+      }
+    }
+    loadDoctorFacilityProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [doctorId, resolvedRole]);
 
   // Consultation Completion Modal State
   const [selectedConsultPatient, setSelectedConsultPatient] = useState<PhcAppointmentQueueItem | null>(null);
@@ -639,18 +604,20 @@ export const DoctorView: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => showToast('PHC Doctor Menu')}
+              onClick={() => showToast(`${resolvedRole === 'DISTRICT_HOSPITAL' ? 'District Hospital' : 'PHC'} Facility Menu`)}
               className="text-slate-800 hover:text-slate-900 p-1 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[26px]">menu</span>
             </button>
             <div>
               <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight flex items-center gap-1">
-                Good Morning, Dr. Anjali! 👋
+                {facilityProfile?.doctor_name || user?.user_metadata?.full_name ? `Dr. ${facilityProfile?.doctor_name || user?.user_metadata?.full_name}` : (resolvedRole === 'DISTRICT_HOSPITAL' ? 'District Hospital Specialist' : 'PHC Medical Officer')} 👋
               </h1>
               <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 leading-none mt-0.5">
                 <span className="material-symbols-outlined text-[13px] text-emerald-600">location_on</span>
-                <span>Dhamangaon PHC, Wardha, Maharashtra</span>
+                <span>
+                  {facilityProfile?.phc_name || facilityProfile?.hospital_name || (resolvedRole === 'DISTRICT_HOSPITAL' ? 'District Hospital' : 'Primary Health Centre')}, {facilityProfile?.district || 'District'}
+                </span>
               </p>
             </div>
           </div>
@@ -671,12 +638,10 @@ export const DoctorView: React.FC = () => {
               )}
             </button>
 
-            {/* Doctor Avatar */}
-            <img
-              src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80"
-              alt="Dr. Anjali"
-              className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400 shrink-0 shadow-sm"
-            />
+            {/* Doctor Avatar / Badge */}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-black text-sm flex items-center justify-center border-2 border-emerald-400 shrink-0 shadow-sm">
+              {(facilityProfile?.doctor_name || user?.user_metadata?.full_name || 'DR').substring(0, 2).toUpperCase()}
+            </div>
           </div>
         </div>
       </div>
@@ -685,22 +650,26 @@ export const DoctorView: React.FC = () => {
       <div className="p-4 space-y-4">
         {activeTab === 'home' && (
           <>
-            {/* HERO CARD: "PHC Practice Overview" */}
+            {/* HERO CARD: Practice Overview */}
             <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-3xl p-5 shadow-xl relative overflow-hidden space-y-4">
-              {/* Graphic Illustration of PHC Building on Right */}
+              {/* Graphic Illustration */}
               <div className="absolute right-2 top-2 bottom-2 w-32 flex items-center justify-end pointer-events-none opacity-95">
                 <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur-md border border-white/30 flex flex-col items-center justify-center text-center p-2">
                   <span className="material-symbols-outlined text-emerald-200 text-[36px]">
                     domain
                   </span>
-                  <span className="text-[10px] font-black tracking-wider text-white">PHC</span>
+                  <span className="text-[10px] font-black tracking-wider text-white">{resolvedRole === 'DISTRICT_HOSPITAL' ? 'DH' : 'PHC'}</span>
                 </div>
               </div>
 
               {/* Title & Subtitle */}
               <div className="relative z-10 space-y-1">
-                <h2 className="text-lg font-black tracking-tight text-white">PHC Practice Overview</h2>
-                <p className="text-xs text-emerald-100 font-medium">Serving our community with care.</p>
+                <h2 className="text-lg font-black tracking-tight text-white">
+                  {facilityProfile?.phc_name || facilityProfile?.hospital_name || (resolvedRole === 'DISTRICT_HOSPITAL' ? 'District Hospital' : 'PHC Practice Overview')}
+                </h2>
+                <p className="text-xs text-emerald-100 font-medium">
+                  {resolvedRole === 'DISTRICT_HOSPITAL' ? 'Secondary & Tertiary Referral Healthcare' : 'Primary Rural Healthcare & Clinical Triage'}
+                </p>
               </div>
 
               {/* Top 3 Metrics Row */}
@@ -709,8 +678,8 @@ export const DoctorView: React.FC = () => {
                   <span className="material-symbols-outlined text-emerald-200 text-[18px]">
                     groups
                   </span>
-                  <div className="text-[10px] text-emerald-100 font-semibold uppercase">Today's OPD</div>
-                  <div className="text-base font-black text-white leading-tight">126</div>
+                  <div className="text-[10px] text-emerald-100 font-semibold uppercase">Active Queue</div>
+                  <div className="text-base font-black text-white leading-tight">{opdAppointments.length}</div>
                 </div>
 
                 <div className="bg-white/15 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 text-center">
@@ -718,15 +687,15 @@ export const DoctorView: React.FC = () => {
                     calendar_month
                   </span>
                   <div className="text-[10px] text-emerald-100 font-semibold uppercase">Appointments</div>
-                  <div className="text-base font-black text-white leading-tight">18</div>
+                  <div className="text-base font-black text-white leading-tight">{opdAppointments.filter(a => a.status === 'CONFIRMED' || a.status === 'CHECKED_IN').length}</div>
                 </div>
 
                 <div className="bg-white/15 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 text-center">
                   <span className="material-symbols-outlined text-emerald-200 text-[18px]">
-                    assignment
+                    link
                   </span>
-                  <div className="text-[10px] text-emerald-100 font-semibold uppercase">Follow-ups</div>
-                  <div className="text-base font-black text-white leading-tight">36</div>
+                  <div className="text-[10px] text-emerald-100 font-semibold uppercase">Referrals</div>
+                  <div className="text-base font-black text-white leading-tight">{hospitalReferrals.length}</div>
                 </div>
               </div>
 
@@ -1250,20 +1219,103 @@ export const DoctorView: React.FC = () => {
         {activeTab === 'profile' && (
           <div className="space-y-4">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
-                <img
-                  src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&auto=format&fit=crop&q=80"
-                  alt="Dr. Anjali"
-                  className="w-16 h-16 rounded-full object-cover border-2 border-emerald-500 shadow-md"
-                />
-                <div>
-                  <h2 className="text-base font-black text-slate-900">Dr. Anjali</h2>
-                  <p className="text-xs text-slate-500 font-medium">PHC Medical Officer</p>
-                  <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full mt-1">
-                    Dhamangaon PHC, Wardha
-                  </span>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-black text-2xl flex items-center justify-center shadow-md">
+                    {(facilityProfile?.doctor_name || user?.user_metadata?.full_name || 'DR').substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-slate-900">
+                      {facilityProfile?.doctor_name ? `Dr. ${facilityProfile?.doctor_name}` : (user?.user_metadata?.full_name || 'Medical Officer')}
+                    </h2>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {facilityProfile?.designation || (resolvedRole === 'DISTRICT_HOSPITAL' ? 'Hospital Specialist / Director' : 'PHC Medical Officer')}
+                    </p>
+                    <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full mt-1">
+                      {facilityProfile?.phc_name || facilityProfile?.hospital_name || 'Healthcare Facility'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <span>Edit Profile</span>
+                </button>
+              </div>
+
+              {/* Facility Details */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-xs">
+                <h4 className="font-extrabold text-slate-800 uppercase tracking-wider text-[10px]">
+                  Facility Information
+                </h4>
+                <div className="space-y-1 text-slate-600">
+                  <div><strong>Facility:</strong> {facilityProfile?.phc_name || facilityProfile?.hospital_name || 'Not Configured'}</div>
+                  <div><strong>Location:</strong> {facilityProfile?.address || ''}, {facilityProfile?.village || facilityProfile?.city || ''}, {facilityProfile?.district || ''} - {facilityProfile?.pin_code || ''}</div>
+                  <div><strong>Phone:</strong> {facilityProfile?.phone_number || facilityProfile?.contact_number || user?.phone || 'Not Configured'}</div>
+                  <div><strong>Email:</strong> {facilityProfile?.official_email || facilityProfile?.email || user?.email || 'Not Configured'}</div>
+                  <div><strong>Operating Hours:</strong> {facilityProfile?.operating_hours || 'Not Configured'}</div>
                 </div>
               </div>
+
+              {/* Configured Services */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-xs">
+                <h4 className="font-extrabold text-slate-800 uppercase tracking-wider text-[10px]">
+                  Available Services
+                </h4>
+                {facilityProfile?.services && facilityProfile.services.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {facilityProfile.services.map((srv: string, idx: number) => (
+                      <span key={idx} className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-lg">
+                        {srv}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 italic text-[11px]">No services have been configured yet.</p>
+                )}
+              </div>
+
+              {/* Configured Specialties (if District Hospital) */}
+              {resolvedRole === 'DISTRICT_HOSPITAL' && (
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-xs">
+                  <h4 className="font-extrabold text-slate-800 uppercase tracking-wider text-[10px]">
+                    Available Specialties
+                  </h4>
+                  {facilityProfile?.specialties && facilityProfile.specialties.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {facilityProfile.specialties.map((spec: string, idx: number) => (
+                        <span key={idx} className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2.5 py-1 rounded-lg">
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-400 italic text-[11px]">No specialties currently available.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Sign Out Action */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                  if (onSignOut) {
+                    onSignOut();
+                  } else {
+                    window.location.href = '/login';
+                  }
+                }}
+                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs py-3 rounded-2xl border border-rose-200 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <span className="material-symbols-outlined text-[18px]">logout</span>
+                <span>Sign Out</span>
+              </button>
             </div>
           </div>
         )}
@@ -2031,6 +2083,20 @@ export const DoctorView: React.FC = () => {
           }
         }}
       />
+      {/* Profile & Settings Modal */}
+      {isProfileModalOpen && (
+        <ProfileSettingsModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          userId={doctorId}
+          role={resolvedRole as any}
+          language="en"
+          onProfileUpdated={(updated) => {
+            setFacilityProfile(updated);
+            showToast('Facility & Doctor profile updated successfully!');
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -25,6 +25,7 @@ import {
   UserNotificationContext,
   RoleNotification,
 } from '../lib/services/RoleBasedNotificationService';
+import { OnboardingProfileService } from '../lib/services/OnboardingProfileService';
 import { supabase } from '../lib/supabaseClient';
 
 async function runTests() {
@@ -1453,6 +1454,286 @@ async function runTests() {
       strangerContext
     );
     assert.strictEqual(canAccessOther.authorized, false);
+  });
+
+  console.log('\n--- 9. Role-Based Profile & Onboarding System Tests ---');
+
+  await test('9.1 Canonical Role Normalization (Exactly 4 Roles)', () => {
+    assert.strictEqual(OnboardingProfileService.normalizeRole('patient'), 'PATIENT');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('PATIENT'), 'PATIENT');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('asha_worker'), 'ASHA');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('ASHA'), 'ASHA');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('phc_doctor'), 'PHC');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('PHC'), 'PHC');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('district_hospital'), 'DISTRICT_HOSPITAL');
+    assert.strictEqual(OnboardingProfileService.normalizeRole('DISTRICT_HOSPITAL'), 'DISTRICT_HOSPITAL');
+  });
+
+  await test('9.2 PATIENT Onboarding: Validates required health profile and distinguishes non-clinical entry', async () => {
+    // Missing required field throws VALIDATION_ERROR
+    await assert.rejects(
+      async () => {
+        await OnboardingProfileService.completePatientProfile('u-pat-test-1', {
+          full_name: '',
+          phone: '9840219283',
+          address: 'Ward 2',
+          village: 'Dhamangaon',
+          district: 'Raigad',
+          state: 'Maharashtra',
+          gender: 'M',
+          age: 28,
+          emergency_contact_name: 'Ramesh',
+          emergency_contact_phone: '9822000000',
+          emergency_contact_relation: 'Brother',
+        });
+      },
+      /VALIDATION_ERROR: Full Name is required/
+    );
+
+    // Invalid phone throws VALIDATION_ERROR
+    await assert.rejects(
+      async () => {
+        await OnboardingProfileService.completePatientProfile('u-pat-test-1', {
+          full_name: 'Roshan Sahani',
+          phone: '123',
+          address: 'Ward 2',
+          village: 'Dhamangaon',
+          district: 'Raigad',
+          state: 'Maharashtra',
+          gender: 'M',
+          age: 28,
+          emergency_contact_name: 'Ramesh',
+          emergency_contact_phone: '9822000000',
+          emergency_contact_relation: 'Brother',
+        });
+      },
+      /VALIDATION_ERROR: Please enter a valid 10-digit mobile phone number/
+    );
+
+    // Valid submission with mock supabase
+    (supabase as any).from = (table: string) => {
+      if (table === 'patient_profiles') {
+        return {
+          upsert: (payload: any) => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { ...payload, id: 'pp-1', is_patient_provided: true }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'profiles') {
+        return {
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+      return {};
+    };
+
+    const validResult = await OnboardingProfileService.completePatientProfile('u-pat-test-1', {
+      full_name: 'Roshan Sahani',
+      phone: '9840219283',
+      address: 'Ward 2 (Gavali Galli)',
+      village: 'Dhamangaon',
+      district: 'Raigad',
+      state: 'Maharashtra',
+      gender: 'M',
+      age: 28,
+      emergency_contact_name: 'Sanjay Sahani',
+      emergency_contact_phone: '9822010800',
+      emergency_contact_relation: 'Father',
+      known_allergies: ['Penicillin'],
+      existing_conditions: ['Hypertension'],
+    });
+
+    assert.strictEqual(validResult.success, true);
+    assert.strictEqual(validResult.profile?.full_name, 'Roshan Sahani');
+    assert.strictEqual(validResult.profile?.is_patient_provided, true);
+  });
+
+  await test('9.3 ASHA Onboarding: Validates work assignment and saves ASHA profile', async () => {
+    (supabase as any).from = (table: string) => {
+      if (table === 'asha_profiles') {
+        return {
+          upsert: (payload: any) => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { ...payload, id: 'ap-1' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'profiles') {
+        return {
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+      return {};
+    };
+
+    const ashaResult = await OnboardingProfileService.completeAshaProfile('u-asha-test-1', {
+      full_name: 'Sunita More',
+      phone: '9840219283',
+      address: 'Dhamangaon Village',
+      asha_worker_id: 'ASHA-MH-2024-884',
+      assigned_village: 'Dhamangaon',
+      block: 'Karjat',
+      district: 'Raigad',
+      state: 'Maharashtra',
+      primary_phc_name: 'Dhamangaon PHC',
+      villages_served: ['Dhamangaon', 'Palsari'],
+    });
+
+    assert.strictEqual(ashaResult.success, true);
+    assert.strictEqual(ashaResult.profile?.assigned_village, 'Dhamangaon');
+    assert.strictEqual(ashaResult.profile?.primary_phc_name, 'Dhamangaon PHC');
+  });
+
+  await test('9.4 PHC Onboarding: Configures facility, provider info, and available services', async () => {
+    (supabase as any).from = (table: string) => {
+      if (table === 'phc_profiles') {
+        return {
+          upsert: (payload: any) => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { ...payload, id: 'phc-1' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'profiles') {
+        return {
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+      return {};
+    };
+
+    const phcResult = await OnboardingProfileService.completePhcProfile('u-phc-test-1', {
+      phc_name: 'Dhamangaon Primary Health Centre',
+      phone: '9822010800',
+      doctor_name: 'Dr. Amit Deshmukh',
+      doctor_designation: 'Medical Officer',
+      address: 'Near Gram Panchayat',
+      village: 'Dhamangaon',
+      block: 'Karjat',
+      district: 'Raigad',
+      state: 'Maharashtra',
+      pincode: '410201',
+      operating_hours: '9:00 AM - 5:00 PM (24x7 Emergency)',
+      services_offered: ['General Consultation', 'Maternal Health', 'Immunization'],
+    });
+
+    assert.strictEqual(phcResult.success, true);
+    assert.strictEqual(phcResult.profile?.doctor_name, 'Dr. Amit Deshmukh');
+    assert.deepStrictEqual(phcResult.profile?.services_offered, ['General Consultation', 'Maternal Health', 'Immunization']);
+  });
+
+  await test('9.5 DISTRICT_HOSPITAL Onboarding: Configures facility, emergency contact, and specialties', async () => {
+    (supabase as any).from = (table: string) => {
+      if (table === 'district_hospital_profiles') {
+        return {
+          upsert: (payload: any) => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: { ...payload, id: 'dh-1' }, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'profiles') {
+        return {
+          update: () => ({
+            eq: () => Promise.resolve({ error: null }),
+          }),
+        };
+      }
+      return {};
+    };
+
+    const dhResult = await OnboardingProfileService.completeDistrictHospitalProfile('u-dh-test-1', {
+      hospital_name: 'Raigad District General Hospital',
+      phone: '9822001122',
+      emergency_phone: '108',
+      email: 'raigad.dh@hospital.gov.in',
+      address: 'Alibag Main Road',
+      city: 'Alibag',
+      district: 'Raigad',
+      state: 'Maharashtra',
+      pincode: '402201',
+      operating_hours: '24x7 Emergency & Trauma',
+      services_offered: ['Emergency Services', 'Specialist Consultation', 'Surgery', 'Diagnostics'],
+      specialties_offered: ['Cardiology', 'Orthopedics', 'Pediatrics', 'Gynecology'],
+    });
+
+    assert.strictEqual(dhResult.success, true);
+    assert.strictEqual(dhResult.profile?.hospital_name, 'Raigad District General Hospital');
+    assert.ok(dhResult.profile?.specialties_offered?.includes('Cardiology'));
+  });
+
+  await test('9.6 Profile Security & RBAC: Rejects unauthorized actor or role escalation attempt', async () => {
+    let updatedPayload: any = null;
+    (supabase as any).from = (table: string) => ({
+      update: (payload: any) => {
+        updatedPayload = payload;
+        return {
+          eq: () => Promise.resolve({ error: null }),
+        };
+      },
+    });
+
+    // Unauthorized actor
+    await assert.rejects(
+      async () => {
+        await OnboardingProfileService.updateRoleProfile(
+          'u-pat-1',
+          'PATIENT',
+          { full_name: 'Hacked Name' },
+          'u-attacker-999'
+        );
+      },
+      /SECURITY_ERROR: Unauthorized/
+    );
+
+    // Sensitive field stripping check
+    const updateAttempt = await OnboardingProfileService.updateRoleProfile(
+      'u-pat-1',
+      'PATIENT',
+      {
+        full_name: 'Roshan Sahani Updated',
+        role: 'DISTRICT_HOSPITAL', // Attempt privilege escalation
+        user_id: 'u-admin-1', // Attempt ID spoofing
+      },
+      'u-pat-1'
+    );
+
+    assert.strictEqual(updateAttempt.success, true);
+    assert.strictEqual(updatedPayload.role, undefined);
+    assert.strictEqual(updatedPayload.user_id, undefined);
+    assert.strictEqual(updatedPayload.full_name, 'Roshan Sahani Updated');
+  });
+
+  await test('9.7 Save & Resume Progressive Draft Flow', async () => {
+    let savedDraft: any = null;
+    (supabase as any).from = (table: string) => ({
+      update: (payload: any) => {
+        savedDraft = payload.onboarding_draft;
+        return {
+          eq: () => Promise.resolve({ error: null }),
+        };
+      },
+    });
+
+    const draftResult = await OnboardingProfileService.saveDraftProfile(
+      'u-asha-draft-1',
+      { role: 'ASHA', stepData: { fullName: 'Sunita Draft', assignedVillage: 'Dhamangaon' } }
+    );
+
+    assert.strictEqual(draftResult, true);
+    assert.strictEqual(savedDraft.role, 'ASHA');
+    assert.strictEqual(savedDraft.stepData.fullName, 'Sunita Draft');
   });
 
   console.log(`\n======================================================`);

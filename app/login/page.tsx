@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../../lib/supabase/client';
+import { OnboardingProfileService } from '../../lib/services/OnboardingProfileService';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,19 +38,20 @@ export default function LoginPage() {
       }
 
       if (data.session) {
-        // Fetch user profile role if available
         const user = data.user;
-        const role = user?.user_metadata?.role || 'asha_worker';
+        const statusRes = await OnboardingProfileService.getProfileStatus(user.id);
 
-        // Redirect based on role or home
-        if (role === 'mo_doctor') {
-          router.push('/doctor');
-        } else if (role === 'admin') {
-          router.push('/admin');
-        } else if (role === 'patient') {
-          router.push('/patient');
+        if (statusRes.status === 'PROFILE_INCOMPLETE') {
+          router.push('/onboarding');
         } else {
-          router.push('/asha');
+          const role = statusRes.role;
+          if (role === 'PHC' || role === 'DISTRICT_HOSPITAL') {
+            router.push('/doctor');
+          } else if (role === 'ASHA') {
+            router.push('/asha');
+          } else {
+            router.push('/patient');
+          }
         }
       }
     } catch (err: any) {

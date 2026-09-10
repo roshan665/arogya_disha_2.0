@@ -32,25 +32,63 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // Helper to normalize user role
+  const rawRole = user?.user_metadata?.role;
+  const isPatient = !rawRole || rawRole.toLowerCase() === 'patient';
+  const isAsha = rawRole === 'ASHA' || rawRole === 'asha_worker' || rawRole === 'asha' || rawRole === 'anm';
+  const isPhcOrDH = rawRole === 'PHC' || rawRole === 'DISTRICT_HOSPITAL' || rawRole === 'mo_doctor' || rawRole === 'specialist' || rawRole === 'phc_doctor' || rawRole === 'dh_specialist';
+  const isAdmin = rawRole === 'admin' || rawRole === 'system_admin';
+
   // 1. Root '/' Route Redirection:
-  // If user accesses '/', redirect them to their specific role dashboard (or /patient by default if guest)
   if (pathname === '/') {
     const url = request.nextUrl.clone();
     if (user) {
-      const userRole = user.user_metadata?.role || 'asha_worker';
-      if (userRole === 'mo_doctor' || userRole === 'specialist') url.pathname = '/doctor';
-      else if (userRole === 'admin' || userRole === 'system_admin') url.pathname = '/admin';
-      else if (userRole === 'patient') url.pathname = '/patient';
-      else url.pathname = '/asha';
+      if (isPhcOrDH) url.pathname = '/doctor';
+      else if (isAdmin) url.pathname = '/admin';
+      else if (isAsha) url.pathname = '/asha';
+      else url.pathname = '/patient';
     } else {
       url.pathname = '/patient';
     }
     return NextResponse.redirect(url);
   }
 
-  // 2. Strict Server-Side Role-Based Route Guards:
-  const userRole = user?.user_metadata?.role;
+  // 2. Profile Status Check & Onboarding Enforcement for authenticated users
+  if (user && (pathname.startsWith('/doctor') || pathname.startsWith('/asha') || pathname.startsWith('/onboarding'))) {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('profile_status, role')
+        .eq('id', user.id)
+        .maybeSingle();
 
+      const isProfileComplete = profile?.profile_status === 'PROFILE_COMPLETE';
+
+      // If user is accessing /onboarding but already completed profile -> redirect to dashboard
+      if (pathname.startsWith('/onboarding')) {
+        if (isProfileComplete) {
+          const dashUrl = request.nextUrl.clone();
+          if (isPhcOrDH) dashUrl.pathname = '/doctor';
+          else if (isAdmin) dashUrl.pathname = '/admin';
+          else if (isAsha) dashUrl.pathname = '/asha';
+          else dashUrl.pathname = '/patient';
+          return NextResponse.redirect(dashUrl);
+        }
+        return supabaseResponse;
+      }
+
+      // If accessing protected staff dashboards with incomplete profile -> redirect to /onboarding
+      if (!isProfileComplete && (pathname.startsWith('/doctor') || pathname.startsWith('/asha'))) {
+        const onboardingUrl = request.nextUrl.clone();
+        onboardingUrl.pathname = '/onboarding';
+        return NextResponse.redirect(onboardingUrl);
+      }
+    } catch (e) {
+      console.warn('Middleware profile status check:', e);
+    }
+  }
+
+  // 3. Strict Server-Side Role-Based Route Guards:
   // Protect /doctor route (Only PHC Medical Officers & District Hospital Specialists)
   if (pathname.startsWith('/doctor')) {
     if (!user) {
@@ -59,9 +97,9 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    if (userRole !== 'mo_doctor' && userRole !== 'specialist' && userRole !== 'phc_doctor' && userRole !== 'dh_specialist') {
+    if (!isPhcOrDH) {
       const fallbackUrl = request.nextUrl.clone();
-      fallbackUrl.pathname = userRole === 'patient' ? '/patient' : '/asha';
+      fallbackUrl.pathname = isPatient ? '/patient' : '/asha';
       return NextResponse.redirect(fallbackUrl);
     }
   }
@@ -74,9 +112,9 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    if (userRole !== 'asha_worker' && userRole !== 'asha' && userRole !== 'anm') {
+    if (!isAsha) {
       const fallbackUrl = request.nextUrl.clone();
-      fallbackUrl.pathname = userRole === 'patient' ? '/patient' : '/doctor';
+      fallbackUrl.pathname = isPatient ? '/patient' : '/doctor';
       return NextResponse.redirect(fallbackUrl);
     }
   }
@@ -89,9 +127,9 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
-    if (userRole !== 'admin' && userRole !== 'system_admin') {
+    if (!isAdmin) {
       const fallbackUrl = request.nextUrl.clone();
-      fallbackUrl.pathname = userRole === 'patient' ? '/patient' : '/asha';
+      fallbackUrl.pathname = isPatient ? '/patient' : '/asha';
       return NextResponse.redirect(fallbackUrl);
     }
   }
@@ -106,5 +144,6 @@ export const config = {
     '/doctor/:path*',
     '/admin/:path*',
     '/patient/:path*',
+    '/onboarding/:path*',
   ],
 };

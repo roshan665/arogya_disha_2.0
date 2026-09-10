@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '../../lib/supabase/client';
 
-export type HealthcareRole = 'asha_worker' | 'mo_doctor' | 'admin' | 'patient';
+export type HealthcareRole = 'PATIENT' | 'ASHA' | 'PHC' | 'DISTRICT_HOSPITAL';
 
 export default function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<HealthcareRole>('asha_worker');
+  const [role, setRole] = useState<HealthcareRole>('PATIENT');
   const [facilityName, setFacilityName] = useState('Primary Health Centre (PHC) Karjat');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export default function SignupPage() {
     const supabase = createClient();
 
     try {
-      // 1. Trigger Supabase Auth signup with metadata for automatic Postgres trigger
+      // 1. Trigger Supabase Auth signup with metadata
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: password.trim(),
@@ -46,6 +46,7 @@ export default function SignupPage() {
             full_name: fullName.trim(),
             role: role,
             facility_name: facilityName.trim(),
+            profile_status: 'PROFILE_INCOMPLETE',
           },
         },
       });
@@ -58,12 +59,13 @@ export default function SignupPage() {
 
       const user = data.user;
       if (user) {
-        // 2. Direct fallback insert/upsert into public.profiles
+        // 2. Insert/upsert into public.profiles
         try {
           await supabase.from('profiles').upsert({
             id: user.id,
             full_name: fullName.trim(),
             role: role,
+            profile_status: 'PROFILE_INCOMPLETE',
             facility_name: facilityName.trim(),
             district: 'Raigad / Karjat Sub-District',
           });
@@ -73,11 +75,11 @@ export default function SignupPage() {
       }
 
       setSuccessMsg(
-        'Account created successfully! Redirecting to login...'
+        'Account created successfully! Redirecting to role profile setup...'
       );
       setTimeout(() => {
-        router.push('/login');
-      }, 1800);
+        router.push('/onboarding');
+      }, 1200);
     } catch (err: any) {
       setErrorMsg(err?.message || 'An unexpected error occurred during registration.');
     } finally {
@@ -133,62 +135,62 @@ export default function SignupPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
-                onClick={() => setRole('asha_worker')}
+                onClick={() => setRole('PATIENT')}
                 className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                  role === 'asha_worker'
+                  role === 'PATIENT'
+                    ? 'bg-emerald-600/30 border-emerald-500 text-white shadow-lg ring-1 ring-emerald-500'
+                    : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px] text-emerald-400">
+                  person
+                </span>
+                <span className="text-[11px] font-bold leading-tight">Patient</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRole('ASHA')}
+                className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                  role === 'ASHA'
                     ? 'bg-indigo-600/30 border-indigo-500 text-white shadow-lg ring-1 ring-indigo-500'
                     : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px] text-indigo-400">
-                  stethoscope
+                  volunteer_activism
                 </span>
                 <span className="text-[11px] font-bold leading-tight">ASHA</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setRole('mo_doctor')}
+                onClick={() => setRole('PHC')}
                 className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                  role === 'mo_doctor'
+                  role === 'PHC'
                     ? 'bg-red-600/30 border-red-500 text-white shadow-lg ring-1 ring-red-500'
                     : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-slate-200'
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px] text-red-400">
-                  medical_services
+                  local_hospital
                 </span>
-                <span className="text-[11px] font-bold leading-tight">Doctor</span>
+                <span className="text-[11px] font-bold leading-tight">PHC Doctor</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setRole('admin')}
+                onClick={() => setRole('DISTRICT_HOSPITAL')}
                 className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                  role === 'admin'
-                    ? 'bg-slate-700 border-slate-500 text-white shadow-lg ring-1 ring-slate-400'
+                  role === 'DISTRICT_HOSPITAL'
+                    ? 'bg-amber-600/30 border-amber-500 text-white shadow-lg ring-1 ring-amber-500'
                     : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <span className="material-symbols-outlined text-[20px] text-slate-300">
-                  monitoring
+                <span className="material-symbols-outlined text-[20px] text-amber-400">
+                  domain
                 </span>
-                <span className="text-[11px] font-bold leading-tight">Admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRole('patient')}
-                className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
-                  role === 'patient'
-                    ? 'bg-emerald-600/30 border-emerald-500 text-white shadow-lg ring-1 ring-emerald-500'
-                    : 'bg-slate-900/60 border-slate-700 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span className="material-symbols-outlined text-[20px] text-emerald-400">
-                  badge
-                </span>
-                <span className="text-[11px] font-bold leading-tight">Patient</span>
+                <span className="text-[11px] font-bold leading-tight">District Hospital</span>
               </button>
             </div>
           </div>

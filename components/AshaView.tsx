@@ -9,6 +9,8 @@ import { HealthcareJourneyLoopService } from '../lib/services/HealthcareJourneyL
 import { RoleBasedMessagingService } from '../lib/services/RoleBasedMessagingService';
 import { useRoleBasedNotifications } from '../lib/hooks/useRoleBasedNotifications';
 import { NotificationCenterModal } from './NotificationCenterModal';
+import { OnboardingProfileService } from '../lib/services/OnboardingProfileService';
+import { ProfileSettingsModal } from './ProfileSettingsModal';
 
 interface AshaViewProps {
   isOffline: boolean;
@@ -44,25 +46,7 @@ interface PatientItem {
   notes: string;
 }
 
-const INITIAL_PATIENTS: PatientItem[] = [
-  {
-    id: 'p-101',
-    name: 'Roshan Sahani',
-    age: 28,
-    gender: 'M',
-    village: 'Dhamangaon',
-    ward: 'Ward 2 (Gavali Galli)',
-    phone: '+91 98402 19283',
-    abhaId: '91-8402-1928-3012',
-    category: 'General',
-    riskScore: 'GREEN',
-    lastVisit: '02 May 2026',
-    nextDueDate: '18 May 2026',
-    conditions: ['Routine Health & Vitals Monitoring', 'Assigned to ASHA Sunita More'],
-    vitals: { bp: '120/80', pulse: 72, spo2: 98 },
-    notes: 'Registered beneficiary under Dhamangaon Sub-center. Assigned to ASHA Sunita More.'
-  }
-];
+const INITIAL_PATIENTS: PatientItem[] = [];
 
 const t = {
   en: {
@@ -421,10 +405,13 @@ export const AshaView: React.FC<AshaViewProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const { schedule, loading } = useAshaDashboard('dummy-asha-id');
+  const { schedule, loading } = useAshaDashboard(ashaUserId);
   const [patientAppointments, setPatientAppointments] = useState<any[]>([]);
+  const [ashaProfile, setAshaProfile] = useState<any>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
-  // Live Patient Assistance Requests State
+  // Live Patient Assistance Requests State (Starts empty, loads from Supabase & Realtime)
   const [assistanceRequests, setAssistanceRequests] = useState<Array<{
     id: string;
     patientId: string;
@@ -432,16 +419,7 @@ export const AshaView: React.FC<AshaViewProps> = ({
     message: string;
     status: AssistanceRequestStatus;
     time: string;
-  }>>([
-    {
-      id: 'req-101',
-      patientId: 'p-patient-101',
-      patientName: 'Roshan Sahani',
-      message: 'Need ANC checkup advice and medicine refill coordination.',
-      status: 'PENDING',
-      time: '10:15 AM',
-    },
-  ]);
+  }>>([]);
 
   // PHC Assigned Community Follow-Up Tasks (Step 6 of Journey Loop)
   const [assignedFollowUps, setAssignedFollowUps] = useState<Array<{
@@ -452,19 +430,30 @@ export const AshaView: React.FC<AshaViewProps> = ({
     status: 'PENDING' | 'COMPLETED';
     phcFacilityId: string;
     time: string;
-  }>>([
-    {
-      id: 'task-fu-demo',
-      patientId: 'p-patient-101',
-      patientName: 'Roshan Sahani',
-      instructions: 'Post-discharge follow-up: Monitor blood pressure and dual antiplatelet medication compliance.',
-      status: 'PENDING',
-      phcFacilityId: 'fac-phc-karjat',
-      time: '10:30 AM',
-    },
-  ]);
+  }>>([]);
 
-  // Role-Based Realtime Communication Hook (Authorized for ASHA)
+  // Fetch real ASHA profile & records
+  useEffect(() => {
+    let isMounted = true;
+    async function loadAshaProfile() {
+      setIsLoadingProfile(true);
+      try {
+        const { profile } = await OnboardingProfileService.getRoleProfile(ashaUserId, 'ASHA');
+        if (isMounted && profile) {
+          setAshaProfile(profile);
+        }
+      } catch (err) {
+        console.warn('Error loading ASHA profile:', err);
+      } finally {
+        if (isMounted) setIsLoadingProfile(false);
+      }
+    }
+    loadAshaProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [ashaUserId]);
+
   // Role-Based Notifications Hook for ASHA
   const {
     notifications: roleNotifications,
@@ -475,7 +464,7 @@ export const AshaView: React.FC<AshaViewProps> = ({
   } = useRoleBasedNotifications({
     userId: ashaUserId,
     role: 'ASHA',
-    assignedPatientIds: ['p-patient-101', 'p-101', 'p-102', 'p-103', 'p-104'],
+    assignedPatientIds: patientsList.map((p) => p.id),
   });
 
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
@@ -1775,22 +1764,35 @@ export const AshaView: React.FC<AshaViewProps> = ({
           <div className="space-y-4">
             {/* ASHA Identity Header Card */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-2xl flex items-center justify-center shadow-md">
-                  SM
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-extrabold text-slate-900">
-                      {user?.user_metadata?.full_name || 'Sunita More (ASHA Worker)'}
-                    </h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-2xl flex items-center justify-center shadow-md">
+                    {(ashaProfile?.full_name || user?.user_metadata?.full_name || 'AS').substring(0, 2).toUpperCase()}
                   </div>
-                  <p className="text-xs text-slate-500 font-medium">{lang.ashaId}</p>
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {lang.onDuty}
-                  </span>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-extrabold text-slate-900">
+                        {ashaProfile?.full_name || user?.user_metadata?.full_name || 'Sunita More'}
+                      </h2>
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">
+                      ASHA ID: {ashaProfile?.asha_worker_id || 'ASHA-MH-2024-884'}
+                    </p>
+                    <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      {lang.onDuty}
+                    </span>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 border border-slate-200 cursor-pointer transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <span>Edit Profile</span>
+                </button>
               </div>
 
               {/* Work Assignment Details */}
@@ -1801,23 +1803,21 @@ export const AshaView: React.FC<AshaViewProps> = ({
                 <div className="space-y-1.5 text-slate-600">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-slate-400 text-[16px]">location_on</span>
-                    <span className="font-semibold">{lang.subCenter}</span>
+                    <span className="font-semibold">
+                      Village: {ashaProfile?.assigned_village || 'Dhamangaon'}, {ashaProfile?.block || 'Karjat'}, {ashaProfile?.district || 'Raigad'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-slate-400 text-[16px]">local_hospital</span>
-                    <span>{lang.parentPhc}</span>
+                    <span>Primary PHC: {ashaProfile?.primary_phc_name || 'Dhamangaon PHC, Karjat'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-slate-400 text-[16px]">phone</span>
+                    <span>Phone: {ashaProfile?.phone_number || user?.phone || '+91 98402 19283'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-slate-400 text-[16px]">groups</span>
-                    <span>Assigned Beneficiaries: Roshan Sahani (+ Registered Villagers)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-slate-400 text-[16px]">badge</span>
-                    <span>{lang.supervisor}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-slate-400 text-[16px]">person</span>
-                    <span>{lang.moDoctor}</span>
+                    <span>Assigned Patients: {patientsList.length > 0 ? `${patientsList.length} Active Records` : 'No patients assigned yet'}</span>
                   </div>
                 </div>
               </div>
@@ -2809,6 +2809,20 @@ export const AshaView: React.FC<AshaViewProps> = ({
           }
         }}
       />
+      {/* Profile & Role Settings Modal */}
+      {isProfileModalOpen && (
+        <ProfileSettingsModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          userId={ashaUserId}
+          role="ASHA"
+          language={language}
+          onProfileUpdated={(updated) => {
+            setAshaProfile(updated);
+            showToast('Profile updated successfully!');
+          }}
+        />
+      )}
     </div>
   );
 };
