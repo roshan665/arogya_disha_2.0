@@ -346,6 +346,54 @@ export const PatientView: React.FC<PatientViewProps> = ({ user }) => {
             ? 'नया नैदानिक प्रयोगशाला रिपोर्ट उपलब्ध हो गया है!'
             : 'New Diagnostic Laboratory Report is now available!'
         );
+      } else if (event.type === 'PATIENT_REFERRED_TO_HOSPITAL') {
+        showToast(
+          language === 'mr'
+            ? '🏥 तुमचा संदर्भ जिल्हा रुग्णालयाकडे पाठवला आहे.'
+            : language === 'hi'
+            ? '🏥 आपका रेफरल जिला अस्पताल को भेजा गया है।'
+            : '🏥 Your referral has been sent to District Hospital.'
+        );
+      } else if (event.type === 'REFERRAL_ACCEPTED') {
+        showToast(
+          language === 'mr'
+            ? '✅ तुमचा रेफरल जिल्हा रुग्णालयाने स्वीकारला आहे.'
+            : language === 'hi'
+            ? '✅ आपका रेफरल जिला अस्पताल द्वारा स्वीकार कर लिया गया है।'
+            : '✅ Your referral has been accepted.'
+        );
+      } else if (event.type === 'APPOINTMENT_SCHEDULED') {
+        showToast(
+          language === 'mr'
+            ? '📅 तुमची रुग्णालय भेट निश्चित झाली आहे.'
+            : language === 'hi'
+            ? '📅 आपकी अस्पताल अपॉइंटमेंट निर्धारित हो गई है।'
+            : '📅 Your hospital appointment has been scheduled.'
+        );
+      } else if (event.type === 'HOSPITAL_TREATMENT_COMPLETED') {
+        showToast(
+          language === 'mr'
+            ? '🏥 तुमचे जिल्हा रुग्णालय उपचार पूर्ण झाले असून पाठपुरावा प्रा.आ.केंद्राकडे सोपवला आहे.'
+            : language === 'hi'
+            ? '🏥 आपका जिला अस्पताल उपचार पूरा हो गया है एवं फॉलो-अप पीएचसी को सौंपा गया है।'
+            : '🏥 Your hospital treatment is completed. Follow-up transferred to PHC.'
+        );
+      } else if (event.type === 'FOLLOW_UP_DUE') {
+        showToast(
+          language === 'mr'
+            ? '⏰ तुमचा आरोग्य पाठपुरावा प्रलंबित आहे.'
+            : language === 'hi'
+            ? '⏰ आपका स्वास्थ्य फॉलो-अप देय है।'
+            : '⏰ Your follow-up is due.'
+        );
+      } else if (event.type === 'HOME_VISIT_COMPLETED') {
+        showToast(
+          language === 'mr'
+            ? '🏡 आशा ताईंची गृहभेट व पाठपुरावा यशस्वीरित्या पूर्ण झाला आहे.'
+            : language === 'hi'
+            ? '🏡 आशा दीदी की गृह भेंट एवं फॉलो-अप पूरा हो गया है।'
+            : '🏡 Home visit and community follow-up completed.'
+        );
       } else if (event.type.startsWith('REFERRAL_')) {
         showToast(
           language === 'mr'

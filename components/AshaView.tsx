@@ -5,6 +5,7 @@ import { saveVisitOffline, RiskScore } from '../lib/db';
 import { useRoleRealtimeCommunication } from '../lib/hooks/useRoleRealtimeCommunication';
 import { RealtimeCommunicationService } from '../lib/services/RealtimeCommunicationService';
 import { PatientAshaCommunicationService, AssistanceRequestStatus } from '../lib/services/PatientAshaCommunicationService';
+import { HealthcareJourneyLoopService } from '../lib/services/HealthcareJourneyLoopService';
 
 interface AshaViewProps {
   isOffline: boolean;
@@ -438,6 +439,27 @@ export const AshaView: React.FC<AshaViewProps> = ({
     },
   ]);
 
+  // PHC Assigned Community Follow-Up Tasks (Step 6 of Journey Loop)
+  const [assignedFollowUps, setAssignedFollowUps] = useState<Array<{
+    id: string;
+    patientId: string;
+    patientName: string;
+    instructions: string;
+    status: 'PENDING' | 'COMPLETED';
+    phcFacilityId: string;
+    time: string;
+  }>>([
+    {
+      id: 'task-fu-demo',
+      patientId: 'p-patient-101',
+      patientName: 'Roshan Sahani',
+      instructions: 'Post-discharge follow-up: Monitor blood pressure and dual antiplatelet medication compliance.',
+      status: 'PENDING',
+      phcFacilityId: 'fac-phc-karjat',
+      time: '10:30 AM',
+    },
+  ]);
+
   // Role-Based Realtime Communication Hook (Authorized for ASHA)
   const ashaUserId = user?.id || 'u-asha-101';
   useRoleRealtimeCommunication({
@@ -462,6 +484,24 @@ export const AshaView: React.FC<AshaViewProps> = ({
             ? '🔔 नया मरीज़ सहायता अनुरोध प्राप्त!'
             : '🔔 New Patient Assistance Request Received!';
         showToast(alertMsg);
+      } else if (event.type === 'COMMUNITY_FOLLOW_UP_ASSIGNED' || event.type === 'FOLLOW_UP_REQUIRED') {
+        const newTask = {
+          id: event.relatedEntityId || 'task-' + Date.now(),
+          patientId: event.patientId,
+          patientName: 'Community Patient',
+          instructions: 'PHC referral follow-up: verify vital signs and medicine compliance.',
+          status: 'PENDING' as const,
+          phcFacilityId: event.actorId || 'fac-phc-karjat',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setAssignedFollowUps((prev) => [newTask, ...prev]);
+        const alertMsg =
+          language === 'mr'
+            ? '📋 प्राथमिक आरोग्य केंद्राकडून नवीन समुदाय पाठपुरावा काम नियुक्त केले!'
+            : language === 'hi'
+            ? '📋 प्राथमिक स्वास्थ्य केंद्र से नया सामुदायिक फॉलो-अप कार्य सौंपा गया!'
+            : '📋 New Community Follow-up Task Assigned from PHC!';
+        showToast(alertMsg);
       } else {
         const alertMsg =
           language === 'mr'
@@ -473,6 +513,31 @@ export const AshaView: React.FC<AshaViewProps> = ({
       }
     },
   });
+
+  const handleCompleteFollowUpTask = async (taskId: string, patientId: string, phcFacilityId: string) => {
+    setAssignedFollowUps((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: 'COMPLETED' } : t))
+    );
+    try {
+      await HealthcareJourneyLoopService.step7_ashaCompleteFollowUpTask({
+        taskId,
+        patientId,
+        ashaId: ashaUserId,
+        phcFacilityId,
+        publicPatientUpdate: 'ASHA home visit and vitals assessment completed successfully.',
+        internalAshaNotes: 'Confidential: Patient vitals within normal parameters.',
+      });
+      const alertMsg =
+        language === 'mr'
+          ? '✅ गृहभेट पाठपुरावा पूर्ण झाला व प्रा.आ.केंद्राला सूचित केले!'
+          : language === 'hi'
+          ? '✅ गृह भेंट फॉलो-अप पूरा हुआ एवं पीएचसी को सूचित किया!'
+          : '✅ Follow-up visit completed and transmitted to PHC!';
+      showToast(alertMsg);
+    } catch (e) {
+      console.warn('Complete follow up notice:', e);
+    }
+  };
 
   const handleUpdateRequestStatus = async (requestId: string, patientId: string, newStatus: AssistanceRequestStatus) => {
     setAssistanceRequests((prev) =>
@@ -1022,6 +1087,78 @@ export const AshaView: React.FC<AshaViewProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Assigned PHC Community Follow-Up Tasks (Step 6 of Healthcare Journey Loop) */}
+            {assignedFollowUps.length > 0 && (
+              <div className="bg-white rounded-3xl p-4 border border-teal-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-teal-50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      {language === 'mr'
+                        ? 'प्रा.आ.के. नियुक्त समुदाय पाठपुरावा (PHC Assigned Tasks)'
+                        : language === 'hi'
+                        ? 'पीएचसी द्वारा सौंपे गए सामुदायिक फॉलो-अप (PHC Assigned Tasks)'
+                        : 'PHC Community Follow-Up Tasks (Live)'}
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-extrabold bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full">
+                    {assignedFollowUps.filter((t) => t.status === 'PENDING').length} Pending
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {assignedFollowUps.map((task) => (
+                    <div
+                      key={task.id}
+                      className="p-3 rounded-2xl bg-teal-50/40 border border-teal-100 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold text-xs flex items-center justify-center">
+                            {task.patientName.charAt(0)}
+                          </span>
+                          <div>
+                            <div className="text-xs font-extrabold text-slate-900">{task.patientName}</div>
+                            <div className="text-[10px] font-medium text-slate-500">{task.time}</div>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                            task.status === 'PENDING'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {task.status}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-100">
+                        "{task.instructions}"
+                      </p>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        {task.status === 'PENDING' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCompleteFollowUpTask(task.id, task.patientId, task.phcFacilityId)}
+                            className="w-full text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white py-2 rounded-xl transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            <span>{language === 'mr' ? 'गृहभेट पूर्ण नोंदवा' : language === 'hi' ? 'गृह भेंट पूर्ण दर्ज करें' : 'Complete Follow-Up Visit'}</span>
+                          </button>
+                        ) : (
+                          <div className="w-full text-center text-xs font-bold text-emerald-700 bg-emerald-50 py-1.5 rounded-xl border border-emerald-200">
+                            ✓ {language === 'mr' ? 'भेट पूर्ण झाली' : language === 'hi' ? 'भेंट पूर्ण' : 'Visit Completed'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Live Patient Assistance Requests (Realtime PATIENT -> ASHA) */}
             {assistanceRequests.length > 0 && (

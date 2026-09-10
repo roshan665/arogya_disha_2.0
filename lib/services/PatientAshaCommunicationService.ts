@@ -80,7 +80,7 @@ export class PatientAshaCommunicationService {
       recipientUserId: params.ashaId,
     });
 
-    return { request, realtimeEvent };
+    return { request, event: realtimeEvent, realtimeEvent };
   }
 
   /**
@@ -128,7 +128,7 @@ export class PatientAshaCommunicationService {
       recipientUserId: params.patientId,
     });
 
-    return { updated, realtimeEvent };
+    return { updated, event: realtimeEvent, realtimeEvent };
   }
 
   /**

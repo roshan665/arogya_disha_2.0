@@ -14,6 +14,7 @@ import {
   PhcDistrictHospitalCommunicationService,
   HospitalReferralStatus,
 } from '../lib/services/PhcDistrictHospitalCommunicationService';
+import { HealthcareJourneyLoopService } from '../lib/services/HealthcareJourneyLoopService';
 import { supabase } from '../lib/supabaseClient';
 
 async function runTests() {
@@ -690,6 +691,177 @@ async function runTests() {
     assert.strictEqual(publishedEvents[1].type, 'ADDITIONAL_INFORMATION_SUBMITTED');
     assert.strictEqual(publishedEvents[1].recipientType, 'DISTRICT_HOSPITAL');
     assert.strictEqual(publishedEvents[1].recipientFacilityId, 'fac-dh-raigad');
+
+    RealtimeCommunicationService.publishEvent = origPublish;
+  });
+
+  console.log('\n--- 6. Complete 7-Step Realtime Healthcare Communication Loop Simulation ---');
+
+  await test('6.1 Full Continuum Simulation: PATIENT -> ASHA -> PHC -> DH -> PHC -> ASHA -> PATIENT', async () => {
+    let capturedEvents: RealtimeHealthcareEvent[] = [];
+    const origPublish = RealtimeCommunicationService.publishEvent;
+    RealtimeCommunicationService.publishEvent = async (p: any) => {
+      const evt: RealtimeHealthcareEvent = {
+        id: `evt-loop-${capturedEvents.length + 1}`,
+        ...p,
+        timestamp: new Date().toISOString(),
+      };
+      capturedEvents.push(evt);
+      return evt;
+    };
+
+    // Mock DB operations for the full journey
+    (supabase as any).from = (table: string) => ({
+      insert: (data: any) => ({
+        select: () => ({
+          single: () =>
+            Promise.resolve({
+              data: { id: `${table}-id-100`, ...data },
+              error: null,
+            }),
+        }),
+      }),
+      update: (data: any) => ({
+        eq: () => ({
+          select: () => ({
+            single: () =>
+              Promise.resolve({
+                data: { id: `${table}-id-100`, ...data },
+                error: null,
+              }),
+          }),
+        }),
+      }),
+    });
+
+    const patientId = 'pat-suresh-101';
+    const ashaId = 'asha-sunita-202';
+    const phcFacilityId = 'fac-phc-karjat';
+    const doctorId = 'doc-amit-303';
+    const dhFacilityId = 'fac-dh-raigad';
+    const specialistId = 'spec-sharma-404';
+
+    // ==========================================
+    // STEP 1 — PATIENT initiates assistance & appointment
+    // ==========================================
+    const step1 = await HealthcareJourneyLoopService.step1_patientInitiate({
+      patientId,
+      ashaId,
+      phcFacilityId,
+      requestType: 'Severe Chest Discomfort & Breathlessness',
+      message: 'Need urgent evaluation and guidance.',
+    });
+    assert.ok(step1.ashaEvent, 'Step 1: ASHA event must be created');
+    assert.ok(step1.phcEvent, 'Step 1: PHC event must be created');
+    assert.strictEqual(step1.ashaEvent?.type, 'NEW_PATIENT_REQUEST');
+    assert.strictEqual(step1.ashaEvent?.recipientUserId, ashaId);
+    assert.strictEqual(step1.phcEvent?.type, 'APPOINTMENT_REQUESTED');
+    assert.strictEqual(step1.phcEvent?.recipientFacilityId, phcFacilityId);
+
+    // ==========================================
+    // STEP 2 — ASHA evaluates and escalates to PHC
+    // ==========================================
+    const step2 = await HealthcareJourneyLoopService.step2_ashaEvaluate({
+      patientId,
+      ashaId,
+      phcFacilityId,
+      outcome: 'PHC_ATTENTION_REQUIRED',
+      publicPatientUpdate: 'Assisted by ASHA. Referred to PHC doctor for urgent assessment.',
+      internalAshaNotes: 'CONFIDENTIAL: BP 160/100, ECG strip shows ST changes, immediate doctor required.',
+    });
+    assert.strictEqual(step2.patientEvent.type, 'ASHA_FOLLOWUP_RECORDED');
+    assert.strictEqual(step2.phcEvent?.type, 'PHC_FOLLOWUP_REQUEST');
+    assert.strictEqual(step2.phcEvent?.recipientFacilityId, phcFacilityId);
+    // Verify privacy: internal clinical notes are never present in event
+    assert.strictEqual((step2.patientEvent as any).internalAshaNotes, undefined);
+    assert.strictEqual((step2.phcEvent as any).internalAshaNotes, undefined);
+
+    // ==========================================
+    // STEP 3 — PHC evaluates and refers to District Hospital
+    // ==========================================
+    const step3 = await HealthcareJourneyLoopService.step3_phcEvaluate({
+      patientId,
+      doctorId,
+      phcFacilityId,
+      destinationDhFacilityId: dhFacilityId,
+      outcome: 'REFER_TO_DISTRICT_HOSPITAL',
+      priority: 'RED',
+      reason: 'Acute Coronary Syndrome / NSTEMI',
+      clinicalSummary: 'Troponin-T positive, ST depression in V4-V6. Requires cath lab angiography.',
+      publicPatientSummary: 'Referred to Raigad District Hospital Cardiology Department for advanced care.',
+      internalDoctorNotes: 'CONFIDENTIAL: High risk GRACE score 148, loaded with dual antiplatelet.',
+    });
+    assert.strictEqual(step3.dhReferralEvent?.type, 'NEW_REFERRAL');
+    assert.strictEqual(step3.dhReferralEvent?.recipientFacilityId, dhFacilityId);
+    assert.strictEqual(step3.patientNotificationEvent?.type, 'PATIENT_REFERRED_TO_HOSPITAL');
+    assert.strictEqual(step3.patientNotificationEvent?.recipientUserId, patientId);
+
+    // ==========================================
+    // STEP 4 — DISTRICT HOSPITAL reviews, accepts, and schedules
+    // ==========================================
+    const referralId = step3.dhReferralEvent?.relatedEntityId || 'ref-loop-100';
+    const step4Accept = await HealthcareJourneyLoopService.step4_districtHospitalProcess({
+      referralId,
+      patientId,
+      dhFacilityId,
+      phcFacilityId,
+      specialistId,
+      outcome: 'ACCEPTED',
+    });
+    assert.strictEqual(step4Accept.phcEvent.type, 'REFERRAL_ACCEPTED');
+    assert.strictEqual(step4Accept.patientEvent?.type, 'REFERRAL_ACCEPTED');
+    assert.strictEqual(step4Accept.patientEvent?.recipientUserId, patientId);
+
+    // ==========================================
+    // STEP 5 — DISTRICT HOSPITAL returns referral outcome to PHC
+    // ==========================================
+    const step5 = await HealthcareJourneyLoopService.step5_districtHospitalReturnToPhc({
+      referralId,
+      patientId,
+      dhFacilityId,
+      phcFacilityId,
+      specialistId,
+      treatmentSummary: 'Coronary angiography and successful DES stent placement to LAD. Patient stable.',
+      followUpInstructions: 'Monitor blood pressure, administer Aspirin + Ticagrelor daily, weekly ASHA visit.',
+    });
+    assert.strictEqual(step5.phcOutcomeEvent.type, 'REFERRAL_RETURNED_TO_PHC');
+    assert.strictEqual(step5.phcOutcomeEvent.recipientFacilityId, phcFacilityId);
+    assert.strictEqual(step5.patientOutcomeEvent.type, 'HOSPITAL_TREATMENT_COMPLETED');
+    assert.strictEqual(step5.patientOutcomeEvent.recipientUserId, patientId);
+
+    // ==========================================
+    // STEP 6 — PHC assigns community follow-up task to ASHA
+    // ==========================================
+    const step6 = await HealthcareJourneyLoopService.step6_phcAssignAshaFollowUp({
+      patientId,
+      phcFacilityId,
+      ashaId,
+      instructions: 'Check post-op vitals, surgical site, and dual antiplatelet compliance twice a week.',
+      dueDate: '2026-05-22',
+    });
+    assert.strictEqual(step6.ashaTaskEvent.type, 'COMMUNITY_FOLLOW_UP_ASSIGNED');
+    assert.strictEqual(step6.ashaTaskEvent.recipientUserId, ashaId);
+    assert.strictEqual(step6.patientFollowUpDueEvent.type, 'FOLLOW_UP_DUE');
+    assert.strictEqual(step6.patientFollowUpDueEvent.recipientUserId, patientId);
+
+    // ==========================================
+    // STEP 7 — ASHA completes community follow-up task & closes loop
+    // ==========================================
+    const step7 = await HealthcareJourneyLoopService.step7_ashaCompleteFollowUpTask({
+      taskId: step6.ashaTaskEvent.relatedEntityId,
+      patientId,
+      ashaId,
+      phcFacilityId,
+      publicPatientUpdate: 'ASHA completed home visit. Patient is recovering well, vitals stable.',
+      internalAshaNotes: 'CONFIDENTIAL: BP 122/78, pulse 72 regular, medications taken correctly.',
+    });
+    assert.strictEqual(step7.patientCompletionEvent.type, 'HOME_VISIT_COMPLETED');
+    assert.strictEqual(step7.patientCompletionEvent.recipientUserId, patientId);
+    assert.strictEqual(step7.phcCompletionEvent.type, 'ASHA_FOLLOWUP_COMPLETED');
+    assert.strictEqual(step7.phcCompletionEvent.recipientFacilityId, phcFacilityId);
+    // Verify privacy: zero internal clinical notes leaked
+    assert.strictEqual((step7.patientCompletionEvent as any).internalAshaNotes, undefined);
+    assert.strictEqual((step7.phcCompletionEvent as any).internalAshaNotes, undefined);
 
     RealtimeCommunicationService.publishEvent = origPublish;
   });
