@@ -38,8 +38,8 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     if (user) {
       const userRole = user.user_metadata?.role || 'asha_worker';
-      if (userRole === 'mo_doctor') url.pathname = '/doctor';
-      else if (userRole === 'admin') url.pathname = '/admin';
+      if (userRole === 'mo_doctor' || userRole === 'specialist') url.pathname = '/doctor';
+      else if (userRole === 'admin' || userRole === 'system_admin') url.pathname = '/admin';
       else if (userRole === 'patient') url.pathname = '/patient';
       else url.pathname = '/asha';
     } else {
@@ -48,7 +48,54 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Allow direct access to /patient, /asha, /doctor, /admin without cross-route forced redirects
+  // 2. Strict Server-Side Role-Based Route Guards:
+  const userRole = user?.user_metadata?.role;
+
+  // Protect /doctor route (Only PHC Medical Officers & District Hospital Specialists)
+  if (pathname.startsWith('/doctor')) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/login';
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    if (userRole !== 'mo_doctor' && userRole !== 'specialist' && userRole !== 'phc_doctor' && userRole !== 'dh_specialist') {
+      const fallbackUrl = request.nextUrl.clone();
+      fallbackUrl.pathname = userRole === 'patient' ? '/patient' : '/asha';
+      return NextResponse.redirect(fallbackUrl);
+    }
+  }
+
+  // Protect /asha route (Only authorized ASHA workers / ANMs)
+  if (pathname.startsWith('/asha')) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/login';
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    if (userRole !== 'asha_worker' && userRole !== 'asha' && userRole !== 'anm') {
+      const fallbackUrl = request.nextUrl.clone();
+      fallbackUrl.pathname = userRole === 'patient' ? '/patient' : '/doctor';
+      return NextResponse.redirect(fallbackUrl);
+    }
+  }
+
+  // Protect /admin route (Only System Admins)
+  if (pathname.startsWith('/admin')) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = '/login';
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    if (userRole !== 'admin' && userRole !== 'system_admin') {
+      const fallbackUrl = request.nextUrl.clone();
+      fallbackUrl.pathname = userRole === 'patient' ? '/patient' : '/asha';
+      return NextResponse.redirect(fallbackUrl);
+    }
+  }
+
   return supabaseResponse;
 }
 
